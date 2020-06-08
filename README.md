@@ -1,1 +1,1 @@
-# Inpaint-and-Stereo-Match_Network
+# Inpaint-and-Stereo-Match-Network
