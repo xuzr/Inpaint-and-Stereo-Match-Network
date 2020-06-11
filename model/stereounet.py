@@ -6,6 +6,7 @@ import functools
 class StereoUnetGenerator(nn.Module):
     def __init__(self, input_nc, output_nc, num_downs, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False):
         super(StereoUnetGenerator, self).__init__()
+        self.ngf = ngf
         # construct inner unet structure
         unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)  # add the innermost layer
         for i in range(num_downs - 5):          # add intermediate layers with ngf * 8 filters
@@ -32,40 +33,61 @@ class StereoUnetGenerator(nn.Module):
         #construct decode structure
         self.up4ngf = nn.Sequential(
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(ngf * 8 * 2, ngf * 4, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            nn.ConvTranspose2d(ngf * 8 * 3, ngf * 4, kernel_size=4, stride=2, padding=1, bias=use_bias),
             norm_layer(ngf* 4))
         self.up2ngf = nn.Sequential(
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(ngf * 4 *2, ngf * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            nn.ConvTranspose2d(ngf * 4 *3, ngf * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),
             norm_layer(ngf* 2))
         self.upngf = nn.Sequential(
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(ngf *2  * 2, ngf, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            nn.ConvTranspose2d(ngf *2  * 3, ngf, kernel_size=4, stride=2, padding=1, bias=use_bias),
             norm_layer(ngf* 1))
         self.outerdecode = nn.Sequential(
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(ngf * 1 * 2, output_nc, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            nn.ConvTranspose2d(ngf * 1 * 3, output_nc, kernel_size=4, stride=2, padding=1, bias=use_bias),
             nn.Tanh())
 
     
-    def forward(self, x):
+    def forward(self, x, y):
+
+        # x encode
         feature_ngf = self.outerencoder(x)
         feature_2ngf = self.down2ngf(feature_ngf)
         feature_4ngf = self.down4ngf(feature_2ngf)
         feature_8ngf = self.down8ngf(feature_4ngf)
+        decode_8ngf = self.inner_blocks(feature_8ngf)[:,self.ngf*8:]
 
-        decode_8ngf = self.inner_blocks(feature_8ngf)
-
-        # decode_4ngf = self.up4ngf(torch.cat([feature_8ngf, decode_8ngf], 1))
-        decode_4ngf = self.up4ngf(decode_8ngf)
-        decode_2ngf = self.up2ngf(torch.cat([feature_4ngf, decode_4ngf], 1))
-        decode_ngf = self.upngf(torch.cat([feature_2ngf, decode_2ngf], 1))
-
-        output = self.outerdecode(torch.cat([feature_ngf, decode_ngf], 1))
+        # y encode
+        yfeature_ngf = self.outerencoder(y)
+        yfeature_2ngf = self.down2ngf(yfeature_ngf)
+        yfeature_4ngf = self.down4ngf(yfeature_2ngf)
+        yfeature_8ngf = self.down8ngf(yfeature_4ngf)
+        ydecode_8ngf = self.inner_blocks(yfeature_8ngf)[:, self.ngf * 8:]
 
 
-        return output
-        
+        # mix feature
+        xmix_8ngf = torch.cat([feature_8ngf, decode_8ngf, ydecode_8ngf],1)
+        ymix_8ngf = torch.cat([yfeature_8ngf, decode_8ngf, ydecode_8ngf],1)
+        xdecode_4ngf = self.up4ngf(xmix_8ngf)
+        ydecode_4ngf = self.up4ngf(ymix_8ngf)
+
+        xmix_4ngf = torch.cat([feature_4ngf, xdecode_4ngf, ydecode_4ngf],1)
+        ymix_4ngf = torch.cat([yfeature_4ngf, xdecode_4ngf, ydecode_4ngf],1)
+        xdecode_2ngf = self.up2ngf(xmix_4ngf)
+        ydecode_2ngf = self.up2ngf(ymix_4ngf)
+
+        xmix_2ngf = torch.cat([feature_2ngf, xdecode_2ngf, ydecode_2ngf],1)
+        ymix_2ngf = torch.cat([yfeature_2ngf, xdecode_2ngf, ydecode_2ngf],1)
+        xdecode_ngf = self.upngf(xmix_2ngf)
+        ydecode_ngf = self.upngf(ymix_2ngf)
+
+        xmix_ngf = torch.cat([feature_ngf, xdecode_ngf, ydecode_ngf],1)
+        ymix_ngf = torch.cat([yfeature_ngf, xdecode_ngf, ydecode_ngf],1)
+        xout = self.outerdecode(xmix_ngf)
+        yout = self.outerdecode(ymix_ngf)
+
+        return xout,yout
 
         
 
