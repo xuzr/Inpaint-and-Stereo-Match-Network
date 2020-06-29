@@ -46,7 +46,7 @@ init_weights(modelG,'kaiming')
 optimizer = optim.Adam(modelG.parameters(), lr=1e-4, betas=(0.9, 0.999))
 
 
-train_loader = data.DataLoader(BlenderSceneDataset("E://code//Data//scene02//scene02//lightfield//sequence", "./split/BlenderScene/train_files.txt",5,transform), batch_size=8, shuffle=True, num_workers=0, drop_last=True)
+train_loader = data.DataLoader(BlenderSceneDataset("E://code//Data//scene02//scene02//lightfield//sequence", "./split/BlenderScene/train_files.txt",20,transform), batch_size=8, shuffle=True, num_workers=0, drop_last=True)
 
 
 def write_tensorboard(imgl, imgr, imglnoh, imgrnoh, imglfake, imgrfake,maskl,maskr, loss,step):
@@ -70,7 +70,7 @@ def train(imgl, imgr, imglnoh, imgrnoh,maskl,maskr,step):
     maskr = maskr.cuda().byte()
     optimizer.zero_grad()
     imglfake, imgrfake = modelG(imgl, imgr)
-    loss = F.mse_loss(imglfake, imglnoh) + F.mse_loss(imgrfake, imgrnoh) + F.smooth_l1_loss(imglfake[maskl], imglnoh[maskl]) + F.smooth_l1_loss(imgrfake[maskr], imglnoh[maskr])
+    loss = F.mse_loss(imglfake, imglnoh) + F.mse_loss(imgrfake, imgrnoh) + 10*F.smooth_l1_loss(imglfake[maskl], imglnoh[maskl]) + F.smooth_l1_loss(imgrfake[maskr], imglnoh[maskr])
     
     write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,maskl,maskr,loss,step)
 
