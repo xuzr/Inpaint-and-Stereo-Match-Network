@@ -37,17 +37,17 @@ class BlenderSceneDataset(data.Dataset):
     
     def __getitem__(self, idx):
         imgl, imgr, imglnoh, imgrnoh = self.paths[idx].split()
-        # imgl = Image.open(os.path.join(self.datafloder,imgl))
-        # imgr = Image.open(os.path.join(self.datafloder, imgr))
+        imgl = Image.open(os.path.join(self.datafloder,imgl))
+        imgr = Image.open(os.path.join(self.datafloder, imgr))
         
-        # imglnoh = Image.open(os.path.join(self.datafloder,imglnoh))
-        # imgrnoh = Image.open(os.path.join(self.datafloder, imgrnoh))
+        imglnoh = Image.open(os.path.join(self.datafloder,imglnoh))
+        imgrnoh = Image.open(os.path.join(self.datafloder, imgrnoh))
 
-        imgl = io.imread(os.path.join(self.datafloder,imgl))
-        imgr = io.imread(os.path.join(self.datafloder, imgr))
+        # imgl = io.imread(os.path.join(self.datafloder,imgl))
+        # imgr = io.imread(os.path.join(self.datafloder, imgr))
 
-        maskl = generate_random_mask(imgl.shape[0],imgl.shape[1],maxsize=200)[:,:,np.newaxis].repeat(3,2).astype(np.uint8)
-        maskr = generate_random_mask(imgl.shape[0], imgl.shape[1], maxsize=200)[:,:,np.newaxis].repeat(3,2).astype(np.uint8)
+        # maskl = generate_random_mask(imgl.shape[0],imgl.shape[1],maxsize=200)[:,:,np.newaxis].repeat(3,2).astype(np.uint8)
+        # maskr = generate_random_mask(imgl.shape[0], imgl.shape[1], maxsize=200)[:,:,np.newaxis].repeat(3,2).astype(np.uint8)
         
         # imglmask = np.ones_like(imgl)*255
         # imgrmask = np.ones_like(imgr) * 255
@@ -55,35 +55,35 @@ class BlenderSceneDataset(data.Dataset):
         # imglmask[np.where(maskl==1)]=imgl[np.where(maskl==1)]
         # imgrmask[np.where(maskr==1)]=imgr[np.where(maskr==1)]
 
-        imglmask = imgl * maskl
+        # imglmask = imgl * maskl
         
-        imgrmask = imgr * maskr
+        # imgrmask = imgr * maskr
 
-        maskl = 1 - maskl
-        maskr = 1 - maskr
+        # maskl = 1 - maskl
+        # maskr = 1 - maskr
         
         
-        if(self.mor_size):
-            kernel = morphology.disk(self.mor_size)
-            maskl = morphology.dilation(maskl[:,:,0], kernel)[:,:,np.newaxis].repeat(3,2).astype(np.uint8)*255
+        # if(self.mor_size):
+        #     kernel = morphology.disk(self.mor_size)
+        #     maskl = morphology.dilation(maskl[:,:,0], kernel)[:,:,np.newaxis].repeat(3,2).astype(np.uint8)*255
             
-            maskr = morphology.dilation(maskr[:,:,0], kernel)[:,:,np.newaxis].repeat(3,2).astype(np.uint8)*255
+        #     maskr = morphology.dilation(maskr[:,:,0], kernel)[:,:,np.newaxis].repeat(3,2).astype(np.uint8)*255
 
             
 
 
 
 
-        # return self.transform(imgl),self.transform(imgr),self.transform(imglnoh),self.transform(imgrnoh)
-        return self.transform(Image.fromarray(imglmask)),self.transform(Image.fromarray(imgrmask)),self.transform(Image.fromarray(imgl)),self.transform(Image.fromarray(imgr)), self.transform(Image.fromarray(maskl)), self.transform(Image.fromarray(maskr))
+        return self.transform(imgl),self.transform(imgr),self.transform(imglnoh),self.transform(imgrnoh)
+        # return self.transform(Image.fromarray(imglmask)),self.transform(Image.fromarray(imgrmask)),self.transform(Image.fromarray(imgl)),self.transform(Image.fromarray(imgr)), self.transform(Image.fromarray(maskl)), self.transform(Image.fromarray(maskr))
         
 
 
         
 
 if __name__ == "__main__":
-    train_files = open('./split/BlenderScene/train_files.txt','w')
-    test_files = open('./split/BlenderScene/test_files.txt', 'w')
+    train_files = open('./split/overexposed/train_files.txt','w')
+    test_files = open('./split/overexposed/test_files.txt', 'w')
     
     count = 0
 
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     imgr = 'Scene_Cam001_frame{:03d}.png'
     imglnoh = 'Scene_NoHighLights_Cam000_frame{:03d}.png'
     imgrnoh = 'Scene_NoHighLights_Cam001_frame{:03d}.png'
-    for _, dirs, files in os.walk("E:/code/Data/scene02/scene02/lightfield/sequence"):
+    for _, dirs, files in os.walk("/home/vodake/Data/Overexposed/Overexposed/scene01No1/lightfield/sequence"):
         for dir in dirs:
             if (count % 5 == 0):
                 test_files.write(dir+'/'+imgl.format(int(dir)) + ' ' + dir+'/'+imgr.format(int(dir)) +

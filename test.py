@@ -46,33 +46,36 @@ init_weights(modelG,'kaiming')
 optimizer = optim.Adam(modelG.parameters(), lr=1e-4, betas=(0.9, 0.999))
 
 
-train_loader = data.DataLoader(BlenderSceneDataset("E://code//Data//scene02//scene02//lightfield//sequence", "./split/BlenderScene/train_files.txt",20,transform), batch_size=8, shuffle=True, num_workers=0, drop_last=True)
+train_loader = data.DataLoader(BlenderSceneDataset("/home/vodake/Data/Overexposed/Overexposed/scene01No1/lightfield/sequence", "./split/overexposed/train_files.txt",20,transform), batch_size=8, shuffle=True, num_workers=0, drop_last=True)
 
 
-def write_tensorboard(imgl, imgr, imglnoh, imgrnoh, imglfake, imgrfake,maskl,maskr, loss,step):
+# def write_tensorboard(imgl, imgr, imglnoh, imgrnoh, imglfake, imgrfake,maskl,maskr, loss,step):
+def write_tensorboard(imgl, imgr, imglnoh, imgrnoh,imglfake, imgrfake, loss,step):
     writer.add_image("imgl",imgl,step,dataformats='NCHW')
     writer.add_image("imgr",imgr,step,dataformats='NCHW')
     writer.add_image("imglnoh",imglnoh,step,dataformats='NCHW')
     writer.add_image("imgrnoh",imgrnoh,step,dataformats='NCHW')
     writer.add_image("imglfake",imglfake,step,dataformats='NCHW')
     writer.add_image("imgrfake", imgrfake, step,dataformats='NCHW')
-    writer.add_image("maskl", maskl, step,dataformats='NCHW')
-    writer.add_image("maskr", maskr, step,dataformats='NCHW')
+    # writer.add_image("maskl", maskl, step,dataformats='NCHW')
+    # writer.add_image("maskr", maskr, step,dataformats='NCHW')
     writer.add_scalar('loss', loss, step)
     step=step+1
 
-def train(imgl, imgr, imglnoh, imgrnoh,maskl,maskr,step):
+# def train(imgl, imgr, imglnoh, imgrnoh,maskl=None,maskr,step):
+def train(imgl, imgr, imglnoh, imgrnoh,step):
     imgl = imgl.cuda()
     imgr = imgr.cuda()
     imglnoh = imglnoh.cuda()
     imgrnoh = imgrnoh.cuda()
-    maskl = maskl.cuda().byte()
-    maskr = maskr.cuda().byte()
+    # maskl = maskl.cuda().byte()
+    # maskr = maskr.cuda().byte()
     optimizer.zero_grad()
     imglfake, imgrfake = modelG(imgl, imgr)
-    loss = F.mse_loss(imglfake, imglnoh) + F.mse_loss(imgrfake, imgrnoh) + 10*F.smooth_l1_loss(imglfake[maskl], imglnoh[maskl]) + F.smooth_l1_loss(imgrfake[maskr], imglnoh[maskr])
+    loss = F.mse_loss(imglfake, imglnoh) + F.mse_loss(imgrfake, imgrnoh) #+ 10*F.smooth_l1_loss(imglfake[maskl], imglnoh[maskl]) + F.smooth_l1_loss(imgrfake[maskr], imglnoh[maskr])
     
-    write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,maskl,maskr,loss,step)
+    # write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,maskl,maskr,loss,step)
+    write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,loss,step)
 
     loss.backward()
     optimizer.step()
@@ -84,6 +87,14 @@ def train(imgl, imgr, imglnoh, imgrnoh,maskl,maskr,step):
 if __name__ == "__main__":
     step =0
     for epoch in range(400):
-        for batch_idx, (imgl, imgr, imglnoh, imgrnoh,maskl,maskr) in enumerate(train_loader):
-            train(imgl, imgr, imglnoh, imgrnoh,maskl,maskr,step)
+        for batch_idx, (imgl, imgr, imglnoh, imgrnoh) in enumerate(train_loader):
+            train(imgl, imgr, imglnoh, imgrnoh,step)
             step =step+1
+        
+        if epoch%10==0:
+            torch.save(
+                {
+                    'state_dict': modelG.state_dict()
+                },
+                "./ckpt/checkpoint_{:04d}.tar".format(epoch)
+            )
