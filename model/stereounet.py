@@ -3,6 +3,25 @@ import torch.nn as nn
 import functools
 
 
+class Depth(nn.Module):
+    def __init__(self,output_ch=1,input_chs={256,128,64},ngf=32):
+        self.output_ch = output_ch
+        self.input_chs = input_chs
+        self.ngf=ngf
+
+        for ch in self.input_chs:
+            setattr(self,"")
+
+class DepthDecode(nn.Module):
+    def __inti__(self,input_ch,output_ch):
+        super(DepthDecode,self).__init__()
+        self.ngf=ngf
+        self.input_ch=input_ch
+        self.output_ch = output_ch
+
+    
+
+
 class StereoUnetGenerator(nn.Module):
     def __init__(self, input_nc, output_nc, num_downs, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False):
         super(StereoUnetGenerator, self).__init__()
@@ -48,6 +67,34 @@ class StereoUnetGenerator(nn.Module):
             nn.ConvTranspose2d(ngf * 1 * 3, output_nc, kernel_size=4, stride=2, padding=1, bias=use_bias),
             nn.Tanh())
 
+        #left depth decode
+        self.up2ngf_depthl= nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(ngf * 4 , ngf * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            norm_layer(ngf* 2))
+        self.upngf_depthl = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(ngf * 2 * 2, ngf, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            norm_layer(ngf* 1))
+        self.outerdecode_depthl = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(ngf * 1 * 2, 1, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            nn.Tanh())
+        
+        #right depth decode
+        self.up2ngf_depthr= nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(ngf * 4 , ngf * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            norm_layer(ngf* 2))
+        self.upngf_depthr = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(ngf * 2 * 2, ngf, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            norm_layer(ngf* 1))
+        self.outerdecode_depthr = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(ngf * 1 * 2, 1, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            nn.Tanh())
+
     
     def forward(self, x, y):
 
@@ -64,7 +111,6 @@ class StereoUnetGenerator(nn.Module):
         yfeature_4ngf = self.down4ngf(yfeature_2ngf)
         yfeature_8ngf = self.down8ngf(yfeature_4ngf)
         ydecode_8ngf = self.inner_blocks(yfeature_8ngf)[:, self.ngf * 8:]
-
 
         # mix feature
         xmix_8ngf = torch.cat([feature_8ngf, decode_8ngf, ydecode_8ngf],1)
@@ -86,8 +132,33 @@ class StereoUnetGenerator(nn.Module):
         ymix_ngf = torch.cat([yfeature_ngf, xdecode_ngf, ydecode_ngf],1)
         xout = self.outerdecode(xmix_ngf)
         yout = self.outerdecode(ymix_ngf)
+        outputs={}
+        # outputs['x_4ngf']=xdecode_4ngf
+        # outputs['x_2ngf']=xdecode_2ngf
+        # outputs['x_ngf']=xdecode_ngf
+        # outputs['x_out']=xout
 
-        return xout,yout
+        # outputs['y_4ngf']=ydecode_4ngf
+        # outputs['y_2ngf']=ydecode_2ngf
+        # outputs['y_ngf']=ydecode_ngf
+        # outputs['y_out']=yout
+
+        #decode depthl
+        depthl = self.up2ngf_depthl(xdecode_4ngf)
+        depthl = self.upngf_depthl(torch.cat([depthl, xdecode_2ngf],1))
+        depthl = self.outerdecode_depthl(torch.cat([depthl, xdecode_ngf],1))
+
+        #decode depthr
+        depthr = self.up2ngf_depthr(ydecode_4ngf)
+        depthr = self.upngf_depthr(torch.cat([depthr, ydecode_2ngf],1))
+        depthr = self.outerdecode_depthr(torch.cat([depthr, ydecode_ngf],1))
+
+        outputs['depthl']=depthl
+        outputs['depthr']=depthr
+        outputs['xout']=xout
+        outputs['yout']=yout
+
+        return outputs
 
         
 

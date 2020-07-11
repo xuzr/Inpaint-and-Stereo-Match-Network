@@ -6,6 +6,7 @@ from PIL import Image
 import numpy as np
 import os
 import random
+from dataloader.readPFM import readPFM
 
 
 
@@ -37,11 +38,32 @@ class BlenderSceneDataset(data.Dataset):
     
     def __getitem__(self, idx):
         imgl, imgr, imglnoh, imgrnoh = self.paths[idx].split()
+        file_idx = imgl[:6]
+
         imgl = Image.open(os.path.join(self.datafloder,imgl))
         imgr = Image.open(os.path.join(self.datafloder, imgr))
         
         imglnoh = Image.open(os.path.join(self.datafloder,imglnoh))
         imgrnoh = Image.open(os.path.join(self.datafloder, imgrnoh))
+
+        depthl_file = 'gt_depth_highres_Cam000.pfm'
+        depthr_file = 'gt_depth_highres_Cam001.pfm'
+        displ_file = 'gt_disp_highres_Cam000.pfm'
+        dispr_file = 'gt_disp_highres_Cam001.pfm'
+
+        depthl,_ = readPFM(os.path.join(self.datafloder,file_idx,depthl_file))
+        depthr,_ = readPFM(os.path.join(self.datafloder,file_idx,depthr_file))
+        displ,_ = readPFM(os.path.join(self.datafloder,file_idx,displ_file))
+        dispr,_ = readPFM(os.path.join(self.datafloder,file_idx,dispr_file))
+
+        depthl_img = Image.fromarray(depthl.copy()).resize((640,384),Image.NEAREST)
+        depthr_img = Image.fromarray(depthl.copy()).resize((640,384),Image.NEAREST)
+
+        import torchvision.transforms as transforms
+        transform = transforms.Compose([transforms.ToTensor()])
+        # depthl_img = Image.fromarray(depthl.copy()).resize((640,384),Image.NEAREST)
+        # depthl_img = Image.fromarray(depthl.copy()).resize((640,384),Image.NEAREST)
+       
 
         # imgl = io.imread(os.path.join(self.datafloder,imgl))
         # imgr = io.imread(os.path.join(self.datafloder, imgr))
@@ -71,10 +93,7 @@ class BlenderSceneDataset(data.Dataset):
 
             
 
-
-
-
-        return self.transform(imgl),self.transform(imgr),self.transform(imglnoh),self.transform(imgrnoh)
+        return self.transform(imgl),self.transform(imgr),self.transform(imglnoh),self.transform(imgrnoh),transform(depthl_img),transform(depthr_img)
         # return self.transform(Image.fromarray(imglmask)),self.transform(Image.fromarray(imgrmask)),self.transform(Image.fromarray(imgl)),self.transform(Image.fromarray(imgr)), self.transform(Image.fromarray(maskl)), self.transform(Image.fromarray(maskr))
         
 
@@ -91,6 +110,11 @@ if __name__ == "__main__":
     imgr = 'Scene_Cam001_frame{:03d}.png'
     imglnoh = 'Scene_NoHighLights_Cam000_frame{:03d}.png'
     imgrnoh = 'Scene_NoHighLights_Cam001_frame{:03d}.png'
+    depthl = 'gt_depth_highres_Cam000.pfm'
+    depthr = 'gt_depth_highres_Cam001.pfm'
+    displ = 'gt_disp_highres_Cam000.pfm'
+    dispr = 'gt_disp_highres_Cam001.pfm'
+
     for _, dirs, files in os.walk("/home/vodake/Data/Overexposed/Overexposed/scene01No1/lightfield/sequence"):
         for dir in dirs:
             if (count % 5 == 0):
