@@ -56,8 +56,8 @@ class BlenderSceneDataset(data.Dataset):
         displ,_ = readPFM(os.path.join(self.datafloder,file_idx,displ_file))
         dispr,_ = readPFM(os.path.join(self.datafloder,file_idx,dispr_file))
 
-        depthl_img = Image.fromarray(depthl.copy()).resize((640,384),Image.NEAREST)
-        depthr_img = Image.fromarray(depthl.copy()).resize((640,384),Image.NEAREST)
+        depthl_img = Image.fromarray(depthl.copy()*1.0/20).resize((640,384),Image.NEAREST)
+        depthr_img = Image.fromarray(depthl.copy()*1.0/20).resize((640,384),Image.NEAREST)
 
         import torchvision.transforms as transforms
         transform = transforms.Compose([transforms.ToTensor()])

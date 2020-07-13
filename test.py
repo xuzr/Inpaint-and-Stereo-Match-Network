@@ -39,7 +39,7 @@ modelG = StereoUnetGenerator(3, 3, 7)
 modelG.cuda()
 init_weights(modelG,'kaiming')
 
-optimizer = optim.Adam(modelG.parameters(), lr=1e-4, betas=(0.9, 0.999))
+optimizer = optim.Adam(modelG.parameters(), lr=1e-2, betas=(0.9, 0.999))
 
 
 train_loader = data.DataLoader(BlenderSceneDataset("/home/vodake/Data/Overexposed/Overexposed/scene01No1/lightfield/sequence", "./split/overexposed/train_files.txt",20,transform), batch_size=8, shuffle=True, num_workers=0, drop_last=True)
@@ -77,13 +77,14 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,step):
     outputs = modelG(imgl, imgr)
     imglfake, imgrfake = outputs['xout'],outputs['yout']
     depthl_pred,depthr_pred = outputs['depthl'],outputs['depthr']
-    loss = F.mse_loss(imglfake, imglnoh) + F.mse_loss(imgrfake, imgrnoh)+F.smooth_l1_loss(depthl_pred,depthl)+F.smooth_l1_loss(depthr_pred,depthr) #+ 10*F.smooth_l1_loss(imglfake[maskl], imglnoh[maskl]) + F.smooth_l1_loss(imgrfake[maskr], imglnoh[maskr])
-    
+    # loss = F.mse_loss(imglfake, imglnoh) + F.mse_loss(imgrfake, imgrnoh)+100*F.smooth_l1_loss(depthl_pred,depthl)+100*F.smooth_l1_loss(depthr_pred,depthr) #+ 10*F.smooth_l1_loss(imglfake[maskl], imglnoh[maskl]) + F.smooth_l1_loss(imgrfake[maskr], imglnoh[maskr])
+    loss = F.mse_loss(depthl_pred,depthl)+F.mse_loss(depthr_pred,depthr)+ 0.5*(F.mse_loss(imglfake, imglnoh) + F.mse_loss(imgrfake, imgrnoh))
     # write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,maskl,maskr,loss,step)
     write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,depthl,depthr,depthl_pred,depthr_pred,loss,step)
 
     loss.backward()
     optimizer.step()
+    print("step: {:06d}".format(step))
     
 
 
