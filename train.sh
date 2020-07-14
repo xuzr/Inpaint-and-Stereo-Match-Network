@@ -1,0 +1,1 @@
+python test.py --loadmode pretrain_ckpt/0714/checkpoint_0400.tar
