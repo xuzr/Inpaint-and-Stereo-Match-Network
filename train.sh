@@ -1,1 +1,1 @@
-python test.py --loadmode pretrain_ckpt/0714/checkpoint_0400.tar
+python train.py --loadmode pretrain_ckpt/0716/checkpoint_1900.tar
