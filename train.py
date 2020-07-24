@@ -48,14 +48,14 @@ modelG = StereoUnetGenerator(3, 3, 7)
 modelG.cuda()
 init_weights(modelG,'kaiming')
 
-optimizer = optim.Adam(modelG.parameters(), lr=1e-4, betas=(0.9, 0.999))
+optimizer = optim.Adam(modelG.parameters(), lr=1e-2, betas=(0.9, 0.999))
 
 if args.loadmodel:
     print('Load pretrained model')
     pretrain_dict = torch.load(args.loadmodel)
     modelG.load_state_dict(pretrain_dict['state_dict'])
 
-train_loader = data.DataLoader(BlenderSceneDataset("/home/vodake/Data/Overexposed/Overexposed/scene01No1/lightfield/sequence", "./split/overexposed/train_files.txt",20,transform), batch_size=4, shuffle=True, num_workers=4, drop_last=True)
+train_loader = data.DataLoader(BlenderSceneDataset("/home/vodake/Data/Overexposed/Overexposed/scene01No1/lightfield/sequence", "./split/overexposed/train_files.txt",20,transform), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
 test_loader = data.DataLoader(BlenderSceneDataset("/home/vodake/Data/Overexposed/Overexposed/scene01No1/lightfield/sequence", "./split/overexposed/test_files.txt",20,transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 # def write_tensorboard(imgl, imgr, imglnoh, imgrnoh, imglfake, imgrfake,maskl,maskr, loss,step):
@@ -92,14 +92,18 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,step):
     imglfake, imgrfake = outputs['xout'],outputs['yout']
     depthl_pred,depthr_pred = outputs['depthl']*2000,outputs['depthr']*2000
     # loss = F.mse_loss(imglfake, imglnoh) + F.mse_loss(imgrfake, imgrnoh)+100*F.smooth_l1_loss(depthl_pred,depthl)+100*F.smooth_l1_loss(depthr_pred,depthr) #+ 10*F.smooth_l1_loss(imglfake[maskl], imglnoh[maskl]) + F.smooth_l1_loss(imgrfake[maskr], imglnoh[maskr])
-    loss = F.mse_loss(depthl_pred,depthl)+F.mse_loss(depthr_pred,depthr) \
-            + 0.7*F.mse_loss(outputs['depthl_2ngf'],depthl)+F.mse_loss(outputs['depthr_2ngf'],depthr) \
-            + 0.5*F.mse_loss(outputs['depthl_ngf'],depthl)+F.mse_loss(outputs['depthr_ngf'],depthr) \
-            + 0.5*(F.mse_loss(imglfake, imglnoh) + F.mse_loss(imgrfake, imgrnoh))
+    depth_loss = F.smooth_l1_loss(depthl_pred,depthl,reduction='mean')+F.smooth_l1_loss(depthr_pred,depthr,reduction='mean') \
+            + 0.7*F.smooth_l1_loss(outputs['depthl_2ngf'],depthl,reduction='mean')+F.smooth_l1_loss(outputs['depthr_2ngf'],depthr,reduction='mean') \
+            + 0.5*F.smooth_l1_loss(outputs['depthl_ngf'],depthl,reduction='mean')+F.smooth_l1_loss(outputs['depthr_ngf'],depthr,reduction='mean') 
+    img_loss = F.mse_loss(imglfake, imglnoh,reduction='mean') + F.mse_loss(imgrfake, imgrnoh,reduction='mean')
+    loss = depth_loss+0.5*img_loss
     mae = F.l1_loss(depthl_pred,depthl)
+    per = (abs(depthl_pred-depthl)/depthl).mean()
     # write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,maskl,maskr,loss,step)
     write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,depthl,depthr,depthl_pred,depthr_pred,loss,step)
     writer.add_scalar('train/mae', mae, step)
+    writer.add_scalar('train/depth_loss', depth_loss, step)
+    writer.add_scalar('train/err_per', per, step)
 
     loss.backward()
     optimizer.step()

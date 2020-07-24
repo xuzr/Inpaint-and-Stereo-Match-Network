@@ -64,7 +64,7 @@ class ResnetBlock(nn.Module):
 
 
 class StereoUnetGenerator(nn.Module):
-    def __init__(self, input_nc, output_nc, num_downs, ngf=16, norm_layer=nn.BatchNorm2d, use_dropout=False):
+    def __init__(self, input_nc, output_nc, num_downs, ngf=32, norm_layer=nn.BatchNorm2d, use_dropout=False):
         super(StereoUnetGenerator, self).__init__()
         self.ngf = ngf
         # construct inner unet structure
@@ -131,7 +131,7 @@ class StereoUnetGenerator(nn.Module):
             ResnetBlock(ngf*2,'zero',norm_layer),
 
             nn.ConvTranspose2d(ngf * 1 * 2, 1, kernel_size=4, stride=2, padding=1, bias=use_bias),
-            nn.Tanh())
+            nn.LeakyReLU())
         self.trans2ngf2depthl = nn.Sequential(
             nn.ReLU(inplace=True),
             ResnetBlock(ngf*2,'zero',norm_layer),
@@ -142,7 +142,7 @@ class StereoUnetGenerator(nn.Module):
 
 
             nn.ConvTranspose2d(ngf * 2, 1, kernel_size=4, stride=2, padding=1, bias=use_bias),
-            nn.Tanh()
+            nn.LeakyReLU()
         )
         self.transngf2depthl= nn.Sequential(
             nn.ReLU(inplace=True),
@@ -152,7 +152,7 @@ class StereoUnetGenerator(nn.Module):
             ResnetBlock(ngf,'zero',norm_layer),
 
             nn.ConvTranspose2d(ngf, 1, kernel_size=4, stride=2, padding=1, bias=use_bias),
-            nn.Tanh()
+            nn.LeakyReLU()
         )
         
         #right depth decode
@@ -170,7 +170,7 @@ class StereoUnetGenerator(nn.Module):
             ResnetBlock(ngf*2,'zero',norm_layer),
             ResnetBlock(ngf*2,'zero',norm_layer),
             nn.ConvTranspose2d(ngf * 1 * 2, 1, kernel_size=4, stride=2, padding=1, bias=use_bias),
-            nn.Tanh())
+            nn.LeakyReLU())
         self.trans2ngf2depthr = nn.Sequential(
             nn.ReLU(inplace=True),
             ResnetBlock(ngf*2,'zero',norm_layer),
@@ -180,7 +180,7 @@ class StereoUnetGenerator(nn.Module):
             ResnetBlock(ngf*2,'zero',norm_layer),
  
             nn.ConvTranspose2d(ngf * 2, 1, kernel_size=4, stride=2, padding=1, bias=use_bias),
-            nn.Tanh()
+            nn.LeakyReLU()
         )
         self.transngf2depthr= nn.Sequential(
             nn.ReLU(inplace=True),
@@ -190,7 +190,7 @@ class StereoUnetGenerator(nn.Module):
             ResnetBlock(ngf,'zero',norm_layer),
 
             nn.ConvTranspose2d(ngf, 1, kernel_size=4, stride=2, padding=1, bias=use_bias),
-            nn.Tanh()
+            nn.LeakyReLU()
         )
 
     
