@@ -7,6 +7,7 @@ import numpy as np
 import os
 import random
 from dataloader.readPFM import readPFM
+# from readPFM import readPFM
 
 
 
@@ -26,11 +27,12 @@ def generate_random_mask(h, w, maxmasks=10, maxsize=10):
 
 
 class BlenderSceneDataset(data.Dataset):
-    def __init__(self, datafloder, txtpath,mor_size,transform):
+    def __init__(self, datafloder, txtpath,mor_size,transform, ob=False):
         self.paths = [line.strip() for line in open(txtpath).readlines()]
         self.datafloder = datafloder
         self.transform = transform
         self.mor_size = mor_size
+        self.ob = ob
       
 
     def __len__(self):
@@ -55,8 +57,19 @@ class BlenderSceneDataset(data.Dataset):
         depthr,_ = readPFM(os.path.join(self.datafloder,file_idx,depthr_file))
         displ,_ = readPFM(os.path.join(self.datafloder,file_idx,displ_file))
         dispr,_ = readPFM(os.path.join(self.datafloder,file_idx,dispr_file))
-        depthl_img = Image.fromarray(depthl.copy()*1.0/20).resize((640,384),Image.NEAREST)
-        depthr_img = Image.fromarray(depthl.copy()*1.0/20).resize((640,384),Image.NEAREST)
+        # depthl     
+
+        depthl_img = Image.fromarray(displ.copy()/3).resize((640,384),Image.NEAREST)
+        depthr_img = Image.fromarray(dispr.copy()/3).resize((640,384),Image.NEAREST)
+
+        if self.ob:
+            maskl= np.where(abs(np.array(imgl).sum(2)-np.array(imglnoh).sum(2))>300,0,1)
+            maskr= np.where(abs(np.array(imgr).sum(2)-np.array(imgrnoh).sum(2))>300,0,1)
+
+            depthl = depthl*maskl
+            displ = displ*maskl
+            depthr = depthr*maskl
+            dispr = dispr*maskl
 
         import torchvision.transforms as transforms
         transform = transforms.Compose([transforms.ToTensor()])
@@ -100,8 +113,8 @@ class BlenderSceneDataset(data.Dataset):
         
 
 if __name__ == "__main__":
-    train_files = open('./split/overexposed/train_files.txt','w')
-    test_files = open('./split/overexposed/test_files.txt', 'w')
+    train_files = open('./split/OEScene2/train_files.txt','w')
+    test_files = open('./split/OEScene2/test_files.txt', 'w')
     
     count = 0
 
@@ -114,7 +127,7 @@ if __name__ == "__main__":
     displ = 'gt_disp_highres_Cam000.pfm'
     dispr = 'gt_disp_highres_Cam001.pfm'
 
-    for _, dirs, files in os.walk("/home/vodake/Data/Overexposed/Overexposed/scene01No1/lightfield/sequence"):
+    for _, dirs, files in os.walk("/home/vodake/Data/t2output/scene1/sequence"):
         for dir in dirs:
             if (count % 5 == 0):
                 test_files.write(dir+'/'+imgl.format(int(dir)) + ' ' + dir+'/'+imgr.format(int(dir)) +
