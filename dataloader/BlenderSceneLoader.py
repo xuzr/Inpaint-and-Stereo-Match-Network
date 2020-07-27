@@ -59,17 +59,20 @@ class BlenderSceneDataset(data.Dataset):
         dispr,_ = readPFM(os.path.join(self.datafloder,file_idx,dispr_file))
         # depthl     
 
-        depthl_img = Image.fromarray(displ.copy()/3).resize((640,384),Image.NEAREST)
-        depthr_img = Image.fromarray(dispr.copy()/3).resize((640,384),Image.NEAREST)
+
 
         if self.ob:
-            maskl= np.where(abs(np.array(imgl).sum(2)-np.array(imglnoh).sum(2))>300,0,1)
-            maskr= np.where(abs(np.array(imgr).sum(2)-np.array(imgrnoh).sum(2))>300,0,1)
+            maskl= np.where(abs(np.array(imgl).sum(2)-np.array(imglnoh).sum(2))>90,0.0,1.0)
+            maskr= np.where(abs(np.array(imgr).sum(2)-np.array(imgrnoh).sum(2))>90,0.0,1.0)
+            # depthl = depthl*maskl
+            # displ = displ*maskl
+            # depthr = depthr*maskr
+            # dispr = dispr*maskr
 
-            depthl = depthl*maskl
-            displ = displ*maskl
-            depthr = depthr*maskl
-            dispr = dispr*maskl
+        # depthl_img = Image.fromarray(displ.copy()/3).resize((640,384),Image.NEAREST)
+        # depthr_img = Image.fromarray(dispr.copy()/3).resize((640,384),Image.NEAREST)
+        depthl_img = Image.fromarray(depthl.copy()*1.0/20.0).resize((640,384),Image.NEAREST)
+        depthr_img = Image.fromarray(depthr.copy()*1.0/20.0).resize((640,384),Image.NEAREST)
 
         import torchvision.transforms as transforms
         transform = transforms.Compose([transforms.ToTensor()])
@@ -103,7 +106,8 @@ class BlenderSceneDataset(data.Dataset):
             
         #     maskr = morphology.dilation(maskr[:,:,0], kernel)[:,:,np.newaxis].repeat(3,2).astype(np.uint8)*255
 
-            
+        if self.ob:
+            return self.transform(imgl),self.transform(imgr),self.transform(imglnoh),self.transform(imgrnoh),transform(depthl_img),transform(depthr_img),self.transform(Image.fromarray(maskl)),self.transform(Image.fromarray(maskr))
 
         return self.transform(imgl),self.transform(imgr),self.transform(imglnoh),self.transform(imgrnoh),transform(depthl_img),transform(depthr_img)
         # return self.transform(Image.fromarray(imglmask)),self.transform(Image.fromarray(imgrmask)),self.transform(Image.fromarray(imgl)),self.transform(Image.fromarray(imgr)), self.transform(Image.fromarray(maskl)), self.transform(Image.fromarray(maskr))

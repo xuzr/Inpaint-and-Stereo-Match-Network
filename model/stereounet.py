@@ -112,7 +112,7 @@ class StereoUnetGenerator(nn.Module):
             ResnetBlock(ngf,'zero',norm_layer),
             ResnetBlock(ngf,'zero',norm_layer),
             nn.Conv2d(ngf, output_nc, kernel_size=3, stride=1, padding=1, bias=use_bias),
-            nn.Tanh())
+            nn.LeakyReLU())
         
 
         #left depth decode
