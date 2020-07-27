@@ -14,6 +14,8 @@ parser = argparse.ArgumentParser(description='IPASMNet')
 
 parser.add_argument('--loadmodel', default= None,
                     help='load model')
+parser.add_argument('--learningrate', type=float, default= 1e-3,
+                    help='load model')
 args = parser.parse_args()
 
 
@@ -48,7 +50,7 @@ modelG = StereoUnetGenerator(3, 3, 7)
 modelG.cuda()
 init_weights(modelG,'kaiming')
 
-optimizer = optim.Adam(modelG.parameters(), lr=1e-3, betas=(0.9, 0.999))
+optimizer = optim.Adam(modelG.parameters(), lr=args.learningrate, betas=(0.9, 0.999))
 
 if args.loadmodel:
     print('Load pretrained model')
