@@ -106,12 +106,37 @@ class StereoUnetGenerator(nn.Module):
         self.outerdecode = nn.Sequential(
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(ngf * 1 * 3, ngf, kernel_size=4, stride=2, padding=1, bias=use_bias),
-            norm_layer(ngf* 1),
-            ResnetBlock(ngf,'zero',norm_layer),
-            ResnetBlock(ngf,'zero',norm_layer),
-            ResnetBlock(ngf,'zero',norm_layer),
-            ResnetBlock(ngf,'zero',norm_layer),
-            nn.Conv2d(ngf, output_nc, kernel_size=3, stride=1, padding=1, bias=use_bias),
+            norm_layer(ngf* 1))
+        self.toimg=nn.Sequential(
+            ResnetBlock(ngf+3,'zero',norm_layer),
+            ResnetBlock(ngf+3,'zero',norm_layer),
+            ResnetBlock(ngf+3,'zero',norm_layer),
+            ResnetBlock(ngf+3,'zero',norm_layer),
+            nn.Conv2d(ngf+3, output_nc, kernel_size=3, stride=1, padding=1, bias=use_bias),
+            nn.LeakyReLU())
+
+        self.up4ngfr = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(ngf * 8 * 3, ngf * 4, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            norm_layer(ngf* 4))
+        self.up2ngfr = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(ngf * 4 *3, ngf * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            norm_layer(ngf* 2))
+        self.upngfr = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(ngf *2  * 3, ngf, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            norm_layer(ngf* 1))
+        self.outerdecoder = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(ngf * 1 * 3, ngf, kernel_size=4, stride=2, padding=1, bias=use_bias),
+            norm_layer(ngf* 1))
+        self.toimgr=nn.Sequential(
+            ResnetBlock(ngf+3,'zero',norm_layer),
+            ResnetBlock(ngf+3,'zero',norm_layer),
+            ResnetBlock(ngf+3,'zero',norm_layer),
+            ResnetBlock(ngf+3,'zero',norm_layer),
+            nn.Conv2d(ngf+3, output_nc, kernel_size=3, stride=1, padding=1, bias=use_bias),
             nn.LeakyReLU())
         
 
@@ -214,21 +239,23 @@ class StereoUnetGenerator(nn.Module):
         xmix_8ngf = torch.cat([feature_8ngf, decode_8ngf, ydecode_8ngf],1)
         ymix_8ngf = torch.cat([yfeature_8ngf, decode_8ngf, ydecode_8ngf],1)
         xdecode_4ngf = self.up4ngf(xmix_8ngf)
-        ydecode_4ngf = self.up4ngf(ymix_8ngf)
+        ydecode_4ngf = self.up4ngfr(ymix_8ngf)
 
         xmix_4ngf = torch.cat([feature_4ngf, xdecode_4ngf, ydecode_4ngf],1)
         ymix_4ngf = torch.cat([yfeature_4ngf, xdecode_4ngf, ydecode_4ngf],1)
         xdecode_2ngf = self.up2ngf(xmix_4ngf)
-        ydecode_2ngf = self.up2ngf(ymix_4ngf)
+        ydecode_2ngf = self.up2ngfr(ymix_4ngf)
 
         xmix_2ngf = torch.cat([feature_2ngf, xdecode_2ngf, ydecode_2ngf],1)
         ymix_2ngf = torch.cat([yfeature_2ngf, xdecode_2ngf, ydecode_2ngf],1)
         xdecode_ngf = self.upngf(xmix_2ngf)
-        ydecode_ngf = self.upngf(ymix_2ngf)
+        ydecode_ngf = self.upngfr(ymix_2ngf)
         xmix_ngf = torch.cat([feature_ngf, xdecode_ngf, ydecode_ngf],1)
         ymix_ngf = torch.cat([yfeature_ngf, xdecode_ngf, ydecode_ngf],1)
         xout = self.outerdecode(xmix_ngf)
         yout = self.outerdecode(ymix_ngf)
+        ximg = self.toimg(torch.cat([x,xout],1))
+        yimg = self.toimgr(torch.cat([y,yout],1))
         outputs={}
         # outputs['x_4ngf']=xdecode_4ngf
         # outputs['x_2ngf']=xdecode_2ngf
@@ -258,8 +285,8 @@ class StereoUnetGenerator(nn.Module):
 
         outputs['depthl']=depthl
         outputs['depthr']=depthr
-        outputs['xout']=xout
-        outputs['yout']=yout
+        outputs['xout']=ximg
+        outputs['yout']=yimg
 
         depth_2ngfl=torch.nn.functional.upsample(depth_2ngfl,(depthl.shape[2],depthl.shape[3]),mode="bilinear")
         depth_2ngfr=torch.nn.functional.upsample(depth_2ngfr,(depthr.shape[2],depthr.shape[3]),mode="bilinear")

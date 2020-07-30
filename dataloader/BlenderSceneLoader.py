@@ -69,10 +69,10 @@ class BlenderSceneDataset(data.Dataset):
             # depthr = depthr*maskr
             # dispr = dispr*maskr
 
-        # depthl_img = Image.fromarray(displ.copy()/3).resize((640,384),Image.NEAREST)
-        # depthr_img = Image.fromarray(dispr.copy()/3).resize((640,384),Image.NEAREST)
-        depthl_img = Image.fromarray(depthl.copy()*1.0/20.0).resize((640,384),Image.NEAREST)
-        depthr_img = Image.fromarray(depthr.copy()*1.0/20.0).resize((640,384),Image.NEAREST)
+        displ_img = Image.fromarray(displ.copy()*512.0/(3*640)).resize((512,384),Image.NEAREST)
+        dispr_img = Image.fromarray(dispr.copy()*512.0/(3*640)).resize((512,384),Image.NEAREST)
+        # depthl_img = Image.fromarray(depthl.copy()*1.0/20.0).resize((640,384),Image.NEAREST)
+        # depthr_img = Image.fromarray(depthr.copy()*1.0/20.0).resize((640,384),Image.NEAREST)
 
         import torchvision.transforms as transforms
         transform = transforms.Compose([transforms.ToTensor()])
@@ -107,9 +107,9 @@ class BlenderSceneDataset(data.Dataset):
         #     maskr = morphology.dilation(maskr[:,:,0], kernel)[:,:,np.newaxis].repeat(3,2).astype(np.uint8)*255
 
         if self.ob:
-            return self.transform(imgl),self.transform(imgr),self.transform(imglnoh),self.transform(imgrnoh),transform(depthl_img),transform(depthr_img),self.transform(Image.fromarray(maskl)),self.transform(Image.fromarray(maskr))
+            return self.transform(imgl),self.transform(imgr),self.transform(imglnoh),self.transform(imgrnoh),transform(displ_img),transform(dispr_img),self.transform(Image.fromarray(maskl)),self.transform(Image.fromarray(maskr))
 
-        return self.transform(imgl),self.transform(imgr),self.transform(imglnoh),self.transform(imgrnoh),transform(depthl_img),transform(depthr_img)
+        return self.transform(imgl),self.transform(imgr),self.transform(imglnoh),self.transform(imgrnoh),transform(displ_img),transform(dispr_img)
         # return self.transform(Image.fromarray(imglmask)),self.transform(Image.fromarray(imgrmask)),self.transform(Image.fromarray(imgl)),self.transform(Image.fromarray(imgr)), self.transform(Image.fromarray(maskl)), self.transform(Image.fromarray(maskr))
         
 
