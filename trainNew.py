@@ -101,6 +101,11 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
     imglfake, imgrfake = outputs['xout'],outputs['yout']
     depthl_pred = outputs['depthl'].unsqueeze(0)
     mask= depthl<192
+
+    oemask = torch.sum(abs(imgl-imglnoh),1)<0.3
+    oemask=oemask.unsqueeze(0)
+    writer.add_image('oemask', oemask,global_step=step, dataformats='NCHW')
+    mask = mask*oemask
     mask=mask.detach()
 
     if mask.sum()==0:
@@ -174,7 +179,7 @@ if __name__ == "__main__":
             train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step)
             step =step+1
 
-        if epoch%10==0:
+        if epoch%1==0:
             mae = test()
             if not minMae:
                 minMae=mae
@@ -185,7 +190,7 @@ if __name__ == "__main__":
             
                 
             
-        if epoch%20==0:
+        if epoch%1==0:
             torch.save(
                 {
                     'state_dict': modelG.state_dict()
