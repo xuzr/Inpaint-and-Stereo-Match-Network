@@ -62,8 +62,8 @@ class BlenderSceneDataset(data.Dataset):
 
 
         if self.ob:
-            maskl= np.where(abs(np.array(imgl).sum(2)-np.array(imglnoh).sum(2))>90,0.0,1.0)
-            maskr= np.where(abs(np.array(imgr).sum(2)-np.array(imgrnoh).sum(2))>90,0.0,1.0)
+            maskl= np.where(abs(np.array(imgl).sum(2).astype(np.int16)-np.array(imglnoh).astype(np.int16).sum(2))>90,0.0,1.0)
+            maskr= np.where(abs(np.array(imgr).sum(2).astype(np.int16)-np.array(imgrnoh).astype(np.int16).sum(2))>90,0.0,1.0)
             # depthl = depthl*maskl
             # displ = displ*maskl
             # depthr = depthr*maskr

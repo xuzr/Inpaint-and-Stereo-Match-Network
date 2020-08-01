@@ -59,7 +59,7 @@ if args.loadmodel:
     pretrain_dict = torch.load(args.loadmodel)
     modelG.load_state_dict(pretrain_dict['state_dict'])
 
-train_loader = data.DataLoader(BlenderSceneDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=1, shuffle=True, num_workers=1, drop_last=True)
+train_loader = data.DataLoader(BlenderSceneDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
 test_loader = data.DataLoader(BlenderSceneDataset(args.datapath, "./split/OEScene2/test_files.txt",20,transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 # def write_tensorboard(imgl, imgr, imglnoh, imgrnoh, imglfake, imgrfake,maskl,maskr, loss,step):
@@ -76,7 +76,7 @@ def write_tensorboard(imgl, imgr, imglnoh, imgrnoh,imglfake, imgrfake, depthl,de
         # writer.add_image("depthr", depthr/depthr.max(), step,dataformats='NCHW')
         writer.add_image("depthl_pred", depthl_pred/depthl_pred.max(), step,dataformats='NCHW')
         # writer.add_image("depthr_pred", depthr_pred/depthl_pred.max(), step,dataformats='NCHW')
-        writer.add_image("maskl", maskl*255, step,dataformats='NCHW')
+        writer.add_image("maskl", maskl.float(), step,dataformats='NCHW')
         # writer.add_image("maskr", maskr*255, step,dataformats='NCHW')
     writer.add_scalar('train/loss', loss, step)
     step=step+1
@@ -91,8 +91,8 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
     depthr=depthr.cuda()
     # maskl_ = (depthl<=2000).byte()
     # maskr_ = (depthr<=2000).byte()
-    maskl = maskl.cuda().byte()
-    maskr = maskr.cuda().byte()
+    maskl = maskl.cuda().byte().detach()
+    maskr = maskr.cuda().byte().detach()
     # maskl=maskl*maskl_
     # maskr=maskr*maskr_
     optimizer.zero_grad()
@@ -100,8 +100,8 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
 
     imglfake, imgrfake = outputs['xout'],outputs['yout']
     depthl_pred = outputs['depthl'].unsqueeze(0)
-    mask= depthl<192
-    mask=mask.detach()
+    mask = depthl < 192
+    mask=mask.detach()*maskl
 
     if mask.sum()==0:
         return
