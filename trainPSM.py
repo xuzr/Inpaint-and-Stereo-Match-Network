@@ -8,6 +8,7 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
 import argparse
+import numpy as np
 
 
 parser = argparse.ArgumentParser(description='IPASMNet')
@@ -76,6 +77,36 @@ def write_tensorboard(imgl, imgr, imglnoh, imgrnoh,imglfake, imgrfake, depthl,de
     # writer.add_image("maskr", maskr, step,dataformats='NCHW')
     writer.add_scalar('train/loss', loss, step)
     step=step+1
+
+def rwarp2l(right, displ):
+    b,c,h,w=left.size()
+    y0l,x0l=np.mgrid[0:h,0:w]
+    yl = np.expand_dims(y0l, 0)
+    yl = np.expand_dims(yl, 0).repeat(b,0)
+    xl = np.expand_dims(x0l, 0)
+    xl = np.expand_dims(xl, 0).repeat(b,0)
+    #print(x.shape,y.shape)
+    gridl = np.concatenate((xl, yl), 1)
+
+    gridl = torch.from_numpy(gridl).cuda().float()
+    y_zerosl = torch.zeros(displ.size()).cuda()
+    flol = torch.cat((displ, y_zerosl), 1).float()
+
+    #trans right to left
+    gridl = gridl - flol
+    
+    #convert pos to [-1,1]
+    gridw = 2.0 * gridl[:, 0, :, :] / max(w - 1, 1) - 1.0
+    gridh = 2.0 * gridl[:, 1,:,:] / max(h - 1, 1) - 1.0
+    gridw = torch.unsqueeze(gridw,dim=1)
+    gridh = torch.unsqueeze(gridh,dim=1)
+    vgridl = torch.cat((gridw, gridh), dim=1)
+    
+    vgridl = vgridl.permute(0, 2, 3, 1) 
+    Irwarp2l=nn.functional.grid_sample(right,vgridl)
+
+    return Irwarp2l
+
 
 # def train(imgl, imgr, imglnoh, imgrnoh,maskl=None,maskr,step):
 def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,step):

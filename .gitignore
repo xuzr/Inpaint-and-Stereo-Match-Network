@@ -1,3 +1,6 @@
+.gitignore
 ckpt
 runs
 *.pyc
+pretrained_ckpt
+*ckpt
