@@ -3,7 +3,7 @@ from model import UnetGenerator, StereoUnetGenerator
 from torch.nn import init
 import torch.optim as optim
 import torch.nn.functional as F
-from dataloader import BlenderSceneDataset
+from dataloader.BlenderSceneLoaderRepair import BlenderSceneDataset
 import torch.utils.data as data
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
@@ -59,7 +59,7 @@ if args.loadmodel:
     pretrain_dict = torch.load(args.loadmodel)
     modelG.load_state_dict(pretrain_dict['state_dict'])
 
-train_loader = data.DataLoader(BlenderSceneDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=1, shuffle=True, num_workers=1, drop_last=True)
+train_loader = data.DataLoader(BlenderSceneDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
 test_loader = data.DataLoader(BlenderSceneDataset(args.datapath, "./split/OEScene2/test_files.txt",20,transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 # def write_tensorboard(imgl, imgr, imglnoh, imgrnoh, imglfake, imgrfake,maskl,maskr, loss,step):
@@ -153,10 +153,15 @@ def test_batch(imgl, imgr, imglnoh, imgrnoh,depthl,depthr):
     with torch.no_grad():
         outputs = modelG(imgl, imgr)
     depthl_pred = outputs['depthl']
-    mask=depthl<192
-    mae = F.l1_loss(depthl_pred.unsqueeze(0)[mask],depthl[mask])
-    vaildoemask = torch.sum(abs(imgl-imglnoh),1)<0.1
-    vaildmae = F.l1_loss(depthl_pred.unsqueeze(0)[vaildoemask],depthl[vaildoemask])
+    imglfake, imgrfake = outputs['xout'],outputs['yout']
+
+    # mask=depthl<192
+    mae = F.l1_loss(imglfake,imglnoh)+ F.l1_loss(imgrfake,imgrnoh)
+    vaildoemask = torch.sum(abs(imgl-imglnoh),1)>0.3
+    vaildoemaskr = torch.sum(abs(imgl-imglnoh),1)>0.3
+    vaildoemask=vaildoemask.unsqueeze(0).repeat(1,3,1,1)
+    vaildoemaskr=vaildoemaskr.unsqueeze(0).repeat(1,3,1,1)
+    vaildmae = F.l1_loss(imglfake[vaildoemask],imglnoh[vaildoemask])+F.l1_loss(imgrfake[vaildoemaskr],imgrnoh[vaildoemaskr])
     print("test step: {:06d}  mae:{:2.6f}".format(step,mae.item()))
     return mae,vaildmae
     
