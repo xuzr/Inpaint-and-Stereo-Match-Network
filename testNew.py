@@ -31,7 +31,7 @@ if args.loadmodel:
 
 transform = transforms.Compose([transforms.Resize((384, 512)),transforms.ToTensor()])
 
-test_loader = data.DataLoader(BlenderSceneDataset("/home/vodake/Data/highlight/lightfield/sequence", "./split/OEScene2/test_files.txt",20,transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+test_loader = data.DataLoader(BlenderSceneDataset("/data/highlight/lightfield/sequence", "./split/OEScene2/test_files.txt",20,transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 
 def test_batch(imgl, imgr, imglnoh, imgrnoh,depthl,depthr):

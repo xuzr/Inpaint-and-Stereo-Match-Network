@@ -146,7 +146,7 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
     depthl_pred = outputs['depthl'].unsqueeze(0)
     mask= depthl<192
 
-    oemask = torch.sum(abs(imgl-imglnoh),1)<0.3
+    oemask = torch.sum(abs(imgl-imglnoh),1)>0.3
     oemask=oemask.unsqueeze(0)
     writer.add_image('oemask', oemask,global_step=step, dataformats='NCHW')
     mask = mask*oemask
@@ -165,14 +165,17 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
     #depth_loss = F.smooth_l1_loss(depthl_pred[maskl],depthl[maskl],reduction='mean')+F.smooth_l1_loss(depthr_pred[maskr],depthr[maskr],reduction='mean') \
     #        + 0.5*(F.smooth_l1_loss(outputs['depthl_2ngf'][maskl],depthl[maskl],reduction='mean')+F.smooth_l1_loss(outputs['depthr_2ngf'][maskr],depthr[maskr],reduction='mean')) \
     #        + 0.7*(F.smooth_l1_loss(outputs['depthl_ngf'][maskl],depthl[maskl],reduction='mean')+F.smooth_l1_loss(outputs['depthr_ngf'][maskr],depthr[maskr],reduction='mean'))
-    oemaskl = 1-maskl
-    oemaskr = 1-maskr
-    oemaskl=oemaskl.repeat(1,3,1,1)
+    # oemaskl = 1-maskl
+    # oemaskr = 1-maskr
+    oemaskl=oemask.repeat(1,3,1,1)
+    oemaskr = torch.sum(abs(imgr-imgrnoh),1)>0.3
+    oemaskr=oemaskr.unsqueeze(0)
     oemaskr=oemaskr.repeat(1,3,1,1)
     img_loss = F.mse_loss(imglfake, imglnoh,reduction='mean') + F.mse_loss(imgrfake, imgrnoh,reduction='mean') \
-                +10 * (F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean') + F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean'))
+                +1000*(F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean') + F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean'))
                 
-    loss = depth_loss + img_loss
+    loss = img_loss
+    # loss = depth_loss + img_loss
 
         
         
@@ -193,7 +196,7 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
             
         
     # write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,maskl,maskr,loss,step)
-    write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,depthl,depthr,depthl_pred,None,maskl,maskr,loss,step)
+    write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,depthl,depthr,depthl_pred,None,oemaskl,oemaskr,loss,step)
     writer.add_scalar('train/mae', mae, step)
     writer.add_scalar('train/depth_loss', depth_loss, step)
     writer.add_scalar('train/err_per', per, step)
@@ -214,7 +217,20 @@ def test_batch(imgl, imgr, imglnoh, imgrnoh,depthl,depthr):
         outputs = modelG(imgl, imgr)
     depthl_pred = outputs['depthl']
     mask=depthl<192
-    mae = F.l1_loss(depthl_pred.unsqueeze(0)[mask],depthl[mask])
+    # mae = F.l1_loss(depthl_pred.unsqueeze(0)[mask],depthl[mask])
+
+    oemask = torch.sum(abs(imgl-imglnoh),1)>0.3
+    oemask=oemask.unsqueeze(0)
+    oemaskl=oemask.repeat(1,3,1,1)
+    oemaskr = torch.sum(abs(imgr-imgrnoh),1)>0.3
+    oemaskr=oemaskr.unsqueeze(0)
+    oemaskr=oemaskr.repeat(1,3,1,1)
+    imglfake, imgrfake = outputs['xout'],outputs['yout']
+    mael = F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean')
+    maer = F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean')
+
+    mae = mael+maer
+    
 
     print("test step: {:06d}  mae:{:2.6f}".format(step,mae.item()))
     return mae

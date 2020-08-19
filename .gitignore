@@ -4,3 +4,4 @@ runs
 *.pyc
 pretrained_ckpt
 *ckpt
+result
