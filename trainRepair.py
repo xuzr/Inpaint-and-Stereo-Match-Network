@@ -3,19 +3,12 @@ from model import UnetGenerator, StereoUnetGenerator
 from torch.nn import init
 import torch.optim as optim
 import torch.nn.functional as F
-from dataloader import BlenderSceneDataset
+from dataloader.BlenderSceneLoaderRepair import BlenderSceneDataset
 import torch.utils.data as data
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
 import argparse
-import numpy as np
-import torch.nn as nn
 
-
-def boolean_string(s):
-    if s not in {'False', 'True'}:
-        raise ValueError('Not a valid boolean string')
-    return s == 'True'
 
 parser = argparse.ArgumentParser(description='IPASMNet')
 
@@ -25,10 +18,6 @@ parser.add_argument('--learningrate', type=float, default= 1e-3,
                     help='load model')
 parser.add_argument('--datapath', default= None,
                     help='load model')
-
-parser.add_argument('--reconstruct_loss', type=boolean_string, default=True,
-                    help='use reconstruct loss if True')
-
 args = parser.parse_args()
 
 
@@ -87,43 +76,10 @@ def write_tensorboard(imgl, imgr, imglnoh, imgrnoh,imglfake, imgrfake, depthl,de
         # writer.add_image("depthr", depthr/depthr.max(), step,dataformats='NCHW')
         writer.add_image("depthl_pred", depthl_pred/depthl_pred.max(), step,dataformats='NCHW')
         # writer.add_image("depthr_pred", depthr_pred/depthl_pred.max(), step,dataformats='NCHW')
-        writer.add_image("maskl", maskl.float(), step,dataformats='NCHW')
+        writer.add_image("maskl", maskl*255, step,dataformats='NCHW')
         # writer.add_image("maskr", maskr*255, step,dataformats='NCHW')
     writer.add_scalar('train/loss', loss, step)
     step=step+1
-
-def rwarp2l(right, displ):
-    b,c,h,w=right.size()
-    y0l,x0l=np.mgrid[0:h,0:w]
-    yl = np.expand_dims(y0l, 0)
-    yl = np.expand_dims(yl, 0).repeat(b,0)
-    xl = np.expand_dims(x0l, 0)
-    xl = np.expand_dims(xl, 0).repeat(b,0)
-    #print(x.shape,y.shape)
-    gridl = np.concatenate((xl, yl), 1)
-
-
-    gridl = torch.from_numpy(gridl).cuda().float()
-    y_zerosl = torch.zeros(displ.size()).cuda()
-                 
-    flol=torch.cat((displ,y_zerosl),1).float()
-
-    #trans right to left
-    gridl=gridl-flol
-
-
-	#convert pos to [-1,1]
-    gridw = 2.0 * gridl[:, 0, :, :] / max(w - 1, 1) - 1.0
-    gridh = 2.0 * gridl[:, 1,:,:] / max(h - 1, 1) - 1.0
-    gridw = torch.unsqueeze(gridw,dim=1)
-    gridh = torch.unsqueeze(gridh,dim=1)
-    vgridl = torch.cat((gridw,gridh),dim=1)
-
-    vgridl = vgridl.permute(0, 2, 3, 1) 
-
-    Irwarp2l=nn.functional.grid_sample(right,vgridl)
-
-    return Irwarp2l
 
 # def train(imgl, imgr, imglnoh, imgrnoh,maskl=None,maskr,step):
 def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
@@ -135,8 +91,8 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
     depthr=depthr.cuda()
     # maskl_ = (depthl<=2000).byte()
     # maskr_ = (depthr<=2000).byte()
-    maskl = maskl.cuda().byte().detach()
-    maskr = maskr.cuda().byte().detach()
+    maskl = maskl.cuda().byte()
+    maskr = maskr.cuda().byte()
     # maskl=maskl*maskl_
     # maskr=maskr*maskr_
     optimizer.zero_grad()
@@ -170,28 +126,12 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
     oemaskl=oemaskl.repeat(1,3,1,1)
     oemaskr=oemaskr.repeat(1,3,1,1)
     img_loss = F.mse_loss(imglfake, imglnoh,reduction='mean') + F.mse_loss(imgrfake, imgrnoh,reduction='mean') \
-                +10 * (F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean') + F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean'))
-                
-    loss = depth_loss + img_loss
-
-        
-        
-    #loss = img_loss
+                +(F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl],reduction='mean') + F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr],reduction='mean'))
+    #loss = depth_loss+0.1*img_loss
+    loss = img_loss
     mask = depthl<192
     mae = F.l1_loss(depthl_pred[mask],depthl[mask])
-    per = (abs(depthl_pred - depthl) / depthl).mean()
-
-    if args.reconstruct_loss:
-        IFrwarp2l = rwarp2l(imgrfake, depthl_pred)
-        reconmask = 1-oemask
-        reconstructLoss = F.mse_loss(IFrwarp2l[reconmask*mask.repeat(1,3,1,1)], imglfake[reconmask*mask.repeat(1,3,1,1)])
-        loss += reconstructLoss
-        writer.add_scalar('train/rcloss', reconstructLoss, step)
-
-        if step%50==0:
-            writer.add_image("imglrecon", IFrwarp2l, step, dataformats='NCHW')
-            
-        
+    per = (abs(depthl_pred-depthl)/depthl).mean()
     # write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,maskl,maskr,loss,step)
     write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,depthl,depthr,depthl_pred,None,maskl,maskr,loss,step)
     writer.add_scalar('train/mae', mae, step)
@@ -213,10 +153,15 @@ def test_batch(imgl, imgr, imglnoh, imgrnoh,depthl,depthr):
     with torch.no_grad():
         outputs = modelG(imgl, imgr)
     depthl_pred = outputs['depthl']
-    mask=depthl<192
-    mae = F.l1_loss(depthl_pred.unsqueeze(0)[mask],depthl[mask])
-    vaildoemask = torch.sum(abs(imgl-imglnoh),1)<0.1
-    vaildmae = F.l1_loss(depthl_pred.unsqueeze(0)[vaildoemask],depthl[vaildoemask])
+    imglfake, imgrfake = outputs['xout'],outputs['yout']
+
+    # mask=depthl<192
+    mae = F.l1_loss(imglfake,imglnoh)+ F.l1_loss(imgrfake,imgrnoh)
+    vaildoemask = torch.sum(abs(imgl-imglnoh),1)>0.3
+    vaildoemaskr = torch.sum(abs(imgl-imglnoh),1)>0.3
+    vaildoemask=vaildoemask.unsqueeze(0).repeat(1,3,1,1)
+    vaildoemaskr=vaildoemaskr.unsqueeze(0).repeat(1,3,1,1)
+    vaildmae = F.l1_loss(imglfake[vaildoemask],imglnoh[vaildoemask])+F.l1_loss(imgrfake[vaildoemaskr],imgrnoh[vaildoemaskr])
     print("test step: {:06d}  mae:{:2.6f}".format(step,mae.item()))
     return mae,vaildmae
     
