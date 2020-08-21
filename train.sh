@@ -6,7 +6,7 @@
 #                         --loadmodel pretrained_ckpt/0802t2/checkpoint_0600.tar
 
 
-python trainNewRepair.py      --learningrate 1e-3 \
+python trainRefactor.py      --learningrate 1e-3 \
                         --datapath /data/highlight/lightfield/sequence \
                         --reconstruct_loss False \
                         # --loadmodel pretrained_ckpt/0802t2/checkpoint_0600.tar
