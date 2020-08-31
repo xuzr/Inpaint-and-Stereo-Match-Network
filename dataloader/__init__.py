@@ -1,1 +1,2 @@
 from .BlenderSceneLoader import BlenderSceneDataset
+from .BlenderLoader import BlenderDataset

@@ -3,7 +3,7 @@ from model import IASMNet
 from torch.nn import init
 import torch.optim as optim
 import torch.nn.functional as F
-from dataloader import BlenderSceneDataset
+from dataloader import BlenderSceneDataset,BlenderDataset
 import torch.utils.data as data
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
@@ -28,6 +28,9 @@ parser.add_argument('--datapath', default= None,
 
 parser.add_argument('--reconstruct_loss', type=boolean_string, default=True,
                     help='use reconstruct loss if True')
+
+parser.add_argument('--fre_img', type=int, default= 50,
+                    help='fre of write img to tensorboard')                  
 
 args = parser.parse_args()
 
@@ -70,27 +73,18 @@ if args.loadmodel:
     pretrain_dict = torch.load(args.loadmodel)
     modelG.load_state_dict(pretrain_dict['state_dict'])
 
-train_loader = data.DataLoader(BlenderSceneDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
-test_loader = data.DataLoader(BlenderSceneDataset(args.datapath, "./split/OEScene2/test_files.txt",20,transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
+test_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/test_files.txt",20,transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 # def write_tensorboard(imgl, imgr, imglnoh, imgrnoh, imglfake, imgrfake,maskl,maskr, loss,step):
-def write_tensorboard(imgl, imgr, imglnoh, imgrnoh,imglfake, imgrfake, depthl,depthr,depthl_pred,depthr_pred,maskl,maskr,loss,step):
-    if step%50==0:
-        writer.add_image("imgl",imgl,step,dataformats='NCHW')
-        writer.add_image("imgr",imgr,step,dataformats='NCHW')
-        writer.add_image("imglnoh",imglnoh,step,dataformats='NCHW')
-        writer.add_image("imgrnoh",imgrnoh,step,dataformats='NCHW')
-        writer.add_image("imglfake",imglfake,step,dataformats='NCHW')
-        writer.add_image("imgrfake", imgrfake, step,dataformats='NCHW')
+def write_tensorboard(scales, imgs, fre):
+    if step % fre == 0:
+        for key, value in imgs.items():
+            writer.add_image(key,value,step,dataformats='NCHW')
 
-        writer.add_image("depthl", depthl/depthl.max(), step,dataformats='NCHW')
-        # writer.add_image("depthr", depthr/depthr.max(), step,dataformats='NCHW')
-        writer.add_image("depthl_pred", depthl_pred/depthl_pred.max(), step,dataformats='NCHW')
-        # writer.add_image("depthr_pred", depthr_pred/depthl_pred.max(), step,dataformats='NCHW')
-        writer.add_image("maskl", maskl.float(), step,dataformats='NCHW')
-        # writer.add_image("maskr", maskr*255, step,dataformats='NCHW')
-    writer.add_scalar('train/loss', loss, step)
-    step=step+1
+    for key, value in scales.items():
+        writer.add_scalar('train/'+key, value, step)
+        
 
 def rwarp2l(right, displ):
     b,c,h,w=right.size()
@@ -126,19 +120,27 @@ def rwarp2l(right, displ):
     return Irwarp2l
 
 # def train(imgl, imgr, imglnoh, imgrnoh,maskl=None,maskr,step):
-def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
-    imgl = imgl.cuda()
-    imgr = imgr.cuda()
-    imglnoh = imglnoh.cuda()
-    imgrnoh = imgrnoh.cuda()
-    depthl=depthl.cuda()
-    depthr=depthr.cuda()
-    # maskl_ = (depthl<=2000).byte()
-    # maskr_ = (depthr<=2000).byte()
-    maskl = maskl.cuda().byte().detach()
-    maskr = maskr.cuda().byte().detach()
-    # maskl=maskl*maskl_
-    # maskr=maskr*maskr_
+# def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
+
+
+def train(samples, step):
+    imgl = samples['imgl'].cuda()
+    imgr = samples['imgr'].cuda()
+    imglnoh = samples['imglnoh'].cuda()
+    imgrnoh = samples['imgrnoh'].cuda()
+    depthl=samples['displ'].cuda()
+    maskl = samples['oemaskl'].cuda().byte().detach()
+    maskr = samples['oemaskr'].cuda().byte().detach()
+
+    # imgl = imgl.cuda()
+    # imgr = imgr.cuda()
+    # imglnoh = imglnoh.cuda()
+    # imgrnoh = imgrnoh.cuda()
+    # depthl=depthl.cuda()
+    # depthr=depthr.cuda()
+    # maskl = maskl.cuda().byte().detach()
+    # maskr = maskr.cuda().byte().detach()
+
     optimizer.zero_grad()
     outputs = modelG(imgl, imgr)
 
@@ -155,23 +157,17 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
     if mask.sum()==0:
         return
 
-
-    # loss = F.mse_loss(imglfake, imglnoh) + F.mse_loss(imgrfake, imgrnoh)+100*F.smooth_l1_loss(depthl_pred,depthl)+100*F.smooth_l1_loss(depthr_pred,depthr) #+ 10*F.smooth_l1_loss(imglfake[maskl], imglnoh[maskl]) + F.smooth_l1_loss(imgrfake[maskr], imglnoh[maskr])
     depth_loss = F.smooth_l1_loss(depthl_pred[mask],depthl[mask],reduction='mean') \
             + 0.5*(F.smooth_l1_loss(outputs['depthl_2ngf'].unsqueeze(0)[mask],depthl[mask],reduction='mean')) \
             + 0.7*(F.smooth_l1_loss(outputs['depthl_ngf'].unsqueeze(0)[mask],depthl[mask],reduction='mean'))
-    # img_loss = F.mse_loss(imglfake, imglnoh,reduction='mean') + F.mse_loss(imgrfake, imgrnoh,reduction='mean')
-
-    #depth_loss = F.smooth_l1_loss(depthl_pred[maskl],depthl[maskl],reduction='mean')+F.smooth_l1_loss(depthr_pred[maskr],depthr[maskr],reduction='mean') \
-    #        + 0.5*(F.smooth_l1_loss(outputs['depthl_2ngf'][maskl],depthl[maskl],reduction='mean')+F.smooth_l1_loss(outputs['depthr_2ngf'][maskr],depthr[maskr],reduction='mean')) \
-    #        + 0.7*(F.smooth_l1_loss(outputs['depthl_ngf'][maskl],depthl[maskl],reduction='mean')+F.smooth_l1_loss(outputs['depthr_ngf'][maskr],depthr[maskr],reduction='mean'))
+    
     oemaskl = 1-maskl
     oemaskr = 1-maskr
     oemaskl=oemaskl.repeat(1,3,1,1)
     oemaskr=oemaskr.repeat(1,3,1,1)
     img_loss = F.mse_loss(imglfake, imglnoh,reduction='mean') + F.mse_loss(imgrfake, imgrnoh,reduction='mean') \
         + (F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean') +
-           F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean'))
+           100*F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean'))
                 
     loss = depth_loss + img_loss
 
@@ -194,23 +190,37 @@ def train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step):
             
         
     # write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,maskl,maskr,loss,step)
-    write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,depthl,depthr,depthl_pred,None,maskl,maskr,loss,step)
-    writer.add_scalar('train/mae', mae, step)
-    writer.add_scalar('train/depth_loss', depth_loss, step)
-    writer.add_scalar('train/err_per', per, step)
+    imgs = {}
+    scales = {}
+    imgs['imgl']=imgl
+    imgs['imgr']=imgr
+    imgs['imglnoh']=imglnoh
+    imgs['imgrnoh']=imgrnoh
+    imgs['imglfake']=imglfake
+    imgs['imgrfake']=imgrfake
+    imgs['depthl']=depthl/depthl.max()
+    imgs['depthl_pred']=depthl_pred/depthl_pred.max()
+    imgs['maskl'] = maskl * 255
+    scales['loss']=loss
+    scales['mae']=mae
+    scales['depth_loss']=depth_loss
+    scales['err_per']=per
+    write_tensorboard(scales,imgs,args.fre_img)
+
 
     loss.backward()
     optimizer.step()
     print("step: {:06d}".format(step))
 
 
-def test_batch(imgl, imgr, imglnoh, imgrnoh,depthl,depthr):
-    imgl = imgl.cuda()
-    imgr = imgr.cuda()
-    imglnoh = imglnoh.cuda()
-    imgrnoh = imgrnoh.cuda()
-    depthl=depthl.cuda()
-    depthr=depthr.cuda()
+def test_batch(samples):
+
+    imgl = samples['imgl'].cuda()
+    imgr = samples['imgr'].cuda()
+    imglnoh = samples['imglnoh'].cuda()
+    imgrnoh = samples['imgrnoh'].cuda()
+    depthl = samples['displ'].cuda()
+    
     with torch.no_grad():
         outputs = modelG(imgl, imgr)
     depthl_pred = outputs['depthl']
@@ -227,14 +237,15 @@ def test():
     modelG.eval()
     maeSum=0.0
     vaildMaeSum=0.0
-    samples=0
-    for batch_idx, (imgl, imgr, imglnoh, imgrnoh,depthl,depthr) in enumerate(test_loader):
-        mae_,vaildmae_ =test_batch(imgl, imgr, imglnoh, imgrnoh,depthl,depthr)
+    num_samples=0
+    for batch_idx, samples in enumerate(test_loader):
+        # mae_,vaildmae_ =test_batch(imgl, imgr, imglnoh, imgrnoh,depthl,depthr)
+        mae_,vaildmae_ = test_batch(samples)
         maeSum+=mae_
         vaildMaeSum+=vaildmae_
-        samples+=1
+        num_samples+=1
     modelG.train()
-    return maeSum/samples,vaildMaeSum/samples
+    return maeSum/num_samples,vaildMaeSum/num_samples
 
 
 if __name__ == "__main__":
@@ -242,8 +253,8 @@ if __name__ == "__main__":
     minMae=None
     minOEMae=None
     for epoch in range(4000):
-        for batch_idx, (imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr) in enumerate(train_loader):
-            train(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,maskl,maskr,step)
+        for batch_idx, samples in enumerate(train_loader):
+            train(samples,step)
             step =step+1
 
         if epoch%1==0:
