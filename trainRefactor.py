@@ -3,7 +3,7 @@ from model import IASMNet
 from torch.nn import init
 import torch.optim as optim
 import torch.nn.functional as F
-from dataloader import BlenderSceneDataset,BlenderDataset
+from dataloader import BlenderSceneDataset,BlenderDataset,SceneflowDataset
 import torch.utils.data as data
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
@@ -25,6 +25,7 @@ parser.add_argument('--learningrate', type=float, default= 1e-3,
                     help='load model')
 parser.add_argument('--datapath', default= None,
                     help='load model')
+parser.add_argument('--max_disp', default=192, type=int, help='max disp')
 
 parser.add_argument('--reconstruct_loss', type=boolean_string, default=True,
                     help='use reconstruct loss if True')
@@ -62,7 +63,7 @@ def init_weights(net, init_type='normal', gain=0.02):
     print('initialize network with %s' % init_type)
     net.apply(init_func)
 
-modelG = IASMNet(3, 3, 7)
+modelG = IASMNet(3, 3, 7,maxdisp=args.max_disp)
 modelG.cuda()
 init_weights(modelG,'kaiming')
 
@@ -73,8 +74,11 @@ if args.loadmodel:
     pretrain_dict = torch.load(args.loadmodel)
     modelG.load_state_dict(pretrain_dict['state_dict'])
 
-train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
-test_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/test_files.txt",20,transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+# train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
+# test_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+
+train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt"), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
+test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt"), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 # def write_tensorboard(imgl, imgr, imglnoh, imgrnoh, imglfake, imgrfake,maskl,maskr, loss,step):
 def write_tensorboard(scales, imgs, fre):
@@ -132,30 +136,22 @@ def train(samples, step):
     maskl = samples['oemaskl'].cuda().byte().detach()
     maskr = samples['oemaskr'].cuda().byte().detach()
 
-    # imgl = imgl.cuda()
-    # imgr = imgr.cuda()
-    # imglnoh = imglnoh.cuda()
-    # imgrnoh = imgrnoh.cuda()
-    # depthl=depthl.cuda()
-    # depthr=depthr.cuda()
-    # maskl = maskl.cuda().byte().detach()
-    # maskr = maskr.cuda().byte().detach()
 
     optimizer.zero_grad()
     outputs = modelG(imgl, imgr)
 
     imglfake, imgrfake = outputs['xout'],outputs['yout']
     depthl_pred = outputs['depthl'].unsqueeze(0)
-    mask= depthl<192
-
-    oemask = torch.sum(abs(imgl-imglnoh),1)<0.3
-    oemask=oemask.unsqueeze(0)
-    writer.add_image('oemask', oemask,global_step=step, dataformats='NCHW')
-    mask = mask*oemask
+    mask = depthl < args.max_disp
+    maskzero = depthl > 0
+    mask *= maskzero
+    
+    
+    # oemask = torch.sum(abs(imgl-imglnoh),1)<0.3
+    # oemask=oemask.unsqueeze(0)
+    # writer.add_image('oemask', oemask,global_step=step, dataformats='NCHW')
+    mask = mask*maskl
     mask=mask.detach()
-
-    if mask.sum()==0:
-        return
 
     depth_loss = F.smooth_l1_loss(depthl_pred[mask],depthl[mask],reduction='mean') \
             + 0.5*(F.smooth_l1_loss(outputs['depthl_2ngf'].unsqueeze(0)[mask],depthl[mask],reduction='mean')) \
@@ -165,28 +161,34 @@ def train(samples, step):
     oemaskr = 1-maskr
     oemaskl=oemaskl.repeat(1,3,1,1)
     oemaskr=oemaskr.repeat(1,3,1,1)
-    img_loss = F.mse_loss(imglfake, imglnoh,reduction='mean') + F.mse_loss(imgrfake, imgrnoh,reduction='mean') \
-        + (F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean') +
-           100*F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean'))
+    img_loss = F.mse_loss(imglfake, imglnoh, reduction='mean') + F.mse_loss(imgrfake, imgrnoh, reduction='mean')
+    
+    if not oemaskl.sum() == 0:
+        img_loss += 10*F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean')
+    if not oemaskr.sum() == 0:
+        img_loss += 10*F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean')
+        
                 
     loss = depth_loss + img_loss
 
         
         
-    #loss = img_loss
-    mask = depthl<192
+    # #loss = img_loss
+    mask = depthl < args.max_disp
+    maskzero = depthl > 0
+    mask *=maskzero
     mae = F.l1_loss(depthl_pred[mask],depthl[mask])
-    per = (abs(depthl_pred - depthl) / depthl).mean()
+    per = (abs(depthl_pred[mask] - depthl[mask]) / depthl[mask]).mean()
 
-    if args.reconstruct_loss:
-        IFrwarp2l = rwarp2l(imgrfake, depthl_pred)
-        reconmask = 1-oemask
-        reconstructLoss = F.mse_loss(IFrwarp2l[reconmask*mask.repeat(1,3,1,1)], imglfake[reconmask*mask.repeat(1,3,1,1)])
-        loss += reconstructLoss
-        writer.add_scalar('train/rcloss', reconstructLoss, step)
+    # if args.reconstruct_loss:
+    #     IFrwarp2l = rwarp2l(imgrfake, depthl_pred)
+    #     reconmask = 1-oemask
+    #     reconstructLoss = F.mse_loss(IFrwarp2l[reconmask*mask.repeat(1,3,1,1)], imglfake[reconmask*mask.repeat(1,3,1,1)])
+    #     loss += reconstructLoss
+    #     writer.add_scalar('train/rcloss', reconstructLoss, step)
 
-        if step%50==0:
-            writer.add_image("imglrecon", IFrwarp2l, step, dataformats='NCHW')
+    #     if step%50==0:
+    #         writer.add_image("imglrecon", IFrwarp2l, step, dataformats='NCHW')
             
         
     # write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,maskl,maskr,loss,step)
@@ -200,7 +202,7 @@ def train(samples, step):
     imgs['imgrfake']=imgrfake
     imgs['depthl']=depthl/depthl.max()
     imgs['depthl_pred']=depthl_pred/depthl_pred.max()
-    imgs['maskl'] = maskl * 255
+    imgs['maskl'] = maskl 
     scales['loss']=loss
     scales['mae']=mae
     scales['depth_loss']=depth_loss
@@ -224,7 +226,9 @@ def test_batch(samples):
     with torch.no_grad():
         outputs = modelG(imgl, imgr)
     depthl_pred = outputs['depthl']
-    mask=depthl<192
+    mask = depthl < args.max_disp
+    maskzero = depthl > 0
+    mask *=maskzero
     mae = F.l1_loss(depthl_pred.unsqueeze(0)[mask],depthl[mask])
     vaildoemask = torch.sum(abs(imgl - imglnoh), 1) < 0.1
     vaildoemask = vaildoemask.unsqueeze(0)
@@ -252,7 +256,7 @@ if __name__ == "__main__":
     step =0
     minMae=None
     minOEMae=None
-    for epoch in range(4000):
+    for epoch in range(21):
         for batch_idx, samples in enumerate(train_loader):
             train(samples,step)
             step =step+1

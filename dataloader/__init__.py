@@ -1,2 +1,3 @@
 from .BlenderSceneLoader import BlenderSceneDataset
 from .BlenderLoader import BlenderDataset
+from .SceneflowLoader import SceneflowDataset
