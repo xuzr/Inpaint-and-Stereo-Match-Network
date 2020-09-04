@@ -7,14 +7,14 @@ from PIL import Image
 import numpy as np
 
 class SceneflowDataset(IASMNDataset):
-    def __init__(self, datafloder, txtpath,max_masks=5,max_size=20):
-        super(SceneflowDataset, self).__init__(random_mask=True,max_masks=max_masks,max_size=max_size)
+    def __init__(self, datafloder, txtpath,max_masks=5,max_size=20,mask_path=None):
+        super(SceneflowDataset, self).__init__(random_mask=True,max_masks=max_masks,max_size=max_size,mask_path=mask_path)
         self.paths = [line.rstrip() for line in open(txtpath)]
         self.datafloder = datafloder
         
 
     def get_len(self):
-        return len(self.paths)
+        return len(self.paths)-1
         
     def get_normal_imgs(self, idx):
         imgLPath, imgRPath, _, _ = self.paths[idx].split(' ')
@@ -36,6 +36,5 @@ class SceneflowDataset(IASMNDataset):
 
 
 if __name__ == "__main__":
-    dataset = SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', '../split/Sceneflow/train_files.txt')
-    import pdb; pdb.set_trace()
-    dataset.__getitem__(1)
+    dataset = SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', '../split/Sceneflow/test_files.txt', max_masks=10)
+    dataset.generate_mask('/home/kb457/Desktop/Data/test_mask')

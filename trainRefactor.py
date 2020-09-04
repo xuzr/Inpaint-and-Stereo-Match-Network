@@ -77,8 +77,8 @@ if args.loadmodel:
 # train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
 # test_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
-train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt"), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
-test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt"), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt",mask_path='/home/kb457/Desktop/Data/train_mask'), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
+test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/test_files.txt",mask_path='/home/kb457/Desktop/Data/test_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 # def write_tensorboard(imgl, imgr, imglnoh, imgrnoh, imglfake, imgrfake,maskl,maskr, loss,step):
 def write_tensorboard(scales, imgs, fre):
@@ -202,7 +202,7 @@ def train(samples, step):
     imgs['imgrfake']=imgrfake
     imgs['depthl']=depthl/depthl.max()
     imgs['depthl_pred']=depthl_pred/depthl_pred.max()
-    imgs['maskl'] = maskl 
+    imgs['maskl'] = maskl*255
     scales['loss']=loss
     scales['mae']=mae
     scales['depth_loss']=depth_loss

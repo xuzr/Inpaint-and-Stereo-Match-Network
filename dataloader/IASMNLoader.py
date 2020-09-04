@@ -21,7 +21,7 @@ def generate_random_mask(h, w, maxmasks=10, maxsize=10):
     return mask
 
 class IASMNDataset(data.Dataset):
-    def __init__(self,expose_imgs=True,normal_imgs=True,mask=True,disp=True,random_mask=False,max_masks=5,max_size=20):
+    def __init__(self,expose_imgs=True,normal_imgs=True,mask=True,disp=True,random_mask=False,max_masks=5,max_size=20,mask_path=None):
         super(IASMNDataset, self).__init__()
         self.random_mask = random_mask
         self.normal_imgs = normal_imgs
@@ -30,6 +30,7 @@ class IASMNDataset(data.Dataset):
         self.disp = disp
         self.max_masks = max_masks
         self.max_size = max_size
+        self.mask_path = mask_path
         
         
         
@@ -42,8 +43,12 @@ class IASMNDataset(data.Dataset):
             samples['imglnoh'], samples['imgrnoh'] = self.get_normal_imgs(idx)
             samples['displ'] = self.get_disp(idx)
             h, w = samples['imglnoh'].shape[:2]
-            samples['oemaskl'] = generate_random_mask(h, w, self.max_masks, self.max_size)
-            samples['oemaskr'] = generate_random_mask(h, w, self.max_masks, self.max_size)
+            if self.mask_path:
+                samples['oemaskl']=io.imread(os.path.join(self.mask_path,'{:08d}maskl.png'.format(idx)))
+                samples['oemaskr']=io.imread(os.path.join(self.mask_path,'{:08d}maskr.png'.format(idx)))
+            else:
+                samples['oemaskl'] = generate_random_mask(h, w, self.max_masks, self.max_size)
+                samples['oemaskr'] = generate_random_mask(h, w, self.max_masks, self.max_size)
             samples['imgl'] = samples['imglnoh'].copy()
             samples['imgl'][np.where(samples['oemaskl'] == 0)] = [1.0, 1.0, 1.0]
             samples['imgr'] = samples['imgrnoh'].copy()
@@ -75,7 +80,14 @@ class IASMNDataset(data.Dataset):
         return samples
             
             
-        
+    def generate_mask(self,path,h=384,w=512):
+        len_ = self.__len__()
+        for i in range(len_):
+            maskl = generate_random_mask(h, w, self.max_masks, self.max_size)
+            maskr = generate_random_mask(h, w, self.max_masks, self.max_size)
+            io.imsave(os.path.join(path,'{:08d}maskl.png'.format(i)),maskl)
+            io.imsave(os.path.join(path,'{:08d}maskr.png'.format(i)),maskr)
+
 
     def get_len(self):
         raise NotImplementedError
