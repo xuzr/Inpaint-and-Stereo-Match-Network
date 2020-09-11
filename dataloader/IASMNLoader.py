@@ -21,7 +21,7 @@ def generate_random_mask(h, w, maxmasks=10, maxsize=10):
     return mask
 
 class IASMNDataset(data.Dataset):
-    def __init__(self,expose_imgs=True,normal_imgs=True,mask=True,disp=True,random_mask=False,max_masks=5,max_size=20,mask_path=None):
+    def __init__(self,expose_imgs=True,normal_imgs=True,mask=True,disp=True,random_mask=False,max_masks=5,max_size=20,mask_path=None,trainning=True):
         super(IASMNDataset, self).__init__()
         self.random_mask = random_mask
         self.normal_imgs = normal_imgs
@@ -31,6 +31,7 @@ class IASMNDataset(data.Dataset):
         self.max_masks = max_masks
         self.max_size = max_size
         self.mask_path = mask_path
+        self.trainning = trainning
         
         
         
@@ -53,7 +54,7 @@ class IASMNDataset(data.Dataset):
             samples['imgl'][np.where(samples['oemaskl'] == 0)] = [1.0, 1.0, 1.0]
             samples['imgr'] = samples['imgrnoh'].copy()
             samples['imgr'][np.where(samples['oemaskr'] == 0)] = [1.0, 1.0, 1.0]
-            samples['displ'][np.where(samples['oemaskl']== 0)]=0.0
+            # samples['displ'][np.where(samples['oemaskl']== 0)]=0.0
             
         else:
             if self.expose_imgs:
