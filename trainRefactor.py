@@ -3,7 +3,7 @@ from model import IASMNet
 from torch.nn import init
 import torch.optim as optim
 import torch.nn.functional as F
-from dataloader import BlenderSceneDataset,BlenderDataset,SceneflowDataset
+from dataloader import BlenderSceneDataset,BlenderDataset,SceneflowDataset,KittiDataset
 import torch.utils.data as data
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
@@ -77,8 +77,12 @@ if args.loadmodel:
 # train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
 # test_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
-train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt",mask_path='/home/kb457/Desktop/Data/train_mask'), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
-test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/test_files.txt",mask_path='/home/kb457/Desktop/Data/test_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+# train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt",mask_path='/home/kb457/Desktop/Data/train_mask'), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
+# test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/test_files.txt",mask_path='/home/kb457/Desktop/Data/test_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+
+train_loader = data.DataLoader(KittiDataset('/home/kb457/Desktop/Data', "./split/kitti2015/train_files.txt",mask_path='/home/kb457/Desktop/Data/data_scene_flow/train_mask',trainning=True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
+test_loader = data.DataLoader(KittiDataset('/home/kb457/Desktop/Data', "./split/kitti2015/test_files.txt",mask_path='/home/kb457/Desktop/Data/data_scene_flow/train_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+
 
 # def write_tensorboard(imgl, imgr, imglnoh, imgrnoh, imglfake, imgrfake,maskl,maskr, loss,step):
 def write_tensorboard(scales, imgs, fre):
@@ -164,9 +168,9 @@ def train(samples, step):
     img_loss = F.mse_loss(imglfake, imglnoh, reduction='mean') + F.mse_loss(imgrfake, imgrnoh, reduction='mean')
     
     if not oemaskl.sum() == 0:
-        img_loss += 10*F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean')
+        img_loss += F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean')
     if not oemaskr.sum() == 0:
-        img_loss += 10*F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean')
+        img_loss += F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean')
         
                 
     loss = depth_loss + img_loss
@@ -256,7 +260,7 @@ if __name__ == "__main__":
     step =0
     minMae=None
     minOEMae=None
-    for epoch in range(21):
+    for epoch in range(3001):
         for batch_idx, samples in enumerate(train_loader):
             train(samples,step)
             step =step+1
