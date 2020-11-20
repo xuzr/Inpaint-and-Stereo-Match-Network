@@ -92,7 +92,57 @@ def write_tensorboard(scales, imgs, fre):
 
     for key, value in scales.items():
         writer.add_scalar('train/'+key, value, step)
-        
+
+
+class SSIM(nn.Module):
+    """Layer to compute the SSIM loss between a pair of images
+    """
+    def __init__(self):
+        super(SSIM, self).__init__()
+        self.mu_x_pool   = nn.AvgPool2d(3, 1)
+        self.mu_y_pool   = nn.AvgPool2d(3, 1)
+        self.sig_x_pool  = nn.AvgPool2d(3, 1)
+        self.sig_y_pool  = nn.AvgPool2d(3, 1)
+        self.sig_xy_pool = nn.AvgPool2d(3, 1)
+
+        self.refl = nn.ReflectionPad2d(1)
+
+        self.C1 = 0.01 ** 2
+        self.C2 = 0.03 ** 2
+
+    def forward(self, x, y):
+        x = self.refl(x)
+        y = self.refl(y)
+
+        mu_x = self.mu_x_pool(x)
+        mu_y = self.mu_y_pool(y)
+
+        sigma_x  = self.sig_x_pool(x ** 2) - mu_x ** 2
+        sigma_y  = self.sig_y_pool(y ** 2) - mu_y ** 2
+        sigma_xy = self.sig_xy_pool(x * y) - mu_x * mu_y
+
+        SSIM_n = (2 * mu_x * mu_y + self.C1) * (2 * sigma_xy + self.C2)
+        SSIM_d = (mu_x ** 2 + mu_y ** 2 + self.C1) * (sigma_x + sigma_y + self.C2)
+
+        return torch.clamp((1 - SSIM_n / SSIM_d) / 2, 0, 1)
+
+ssim = SSIM()
+ssim=ssim.cuda()
+
+def compute_reprojection_loss(pred, target):
+    """Computes reprojection loss between a batch of predicted and target images
+    """
+    abs_diff = torch.abs(target - pred)
+    l1_loss = abs_diff.mean(1, True)
+
+    # ploss = PLoss(pred,target)
+
+    ssim_loss = ssim(pred, target).mean(1, True)
+    reprojection_loss = 0.85 * ssim_loss + 0.15 * l1_loss
+    # reprojection_loss = 0.1 * ssim_loss + 0.9 * l1_loss
+
+
+    return reprojection_loss
 
 def rwarp2l(right, displ):
     b,c,h,w=right.size()
@@ -171,9 +221,12 @@ def train(samples, step):
         img_loss += F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean')
     if not oemaskr.sum() == 0:
         img_loss += F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean')
-        
-                
-    loss = depth_loss + img_loss
+
+
+    Irwarp2l = rwarp2l(imgrfake, depthl_pred)
+    recon_loss = compute_reprojection_loss(imglfake,Irwarp2l).mean()
+    loss = depth_loss + img_loss + 0.1*recon_loss
+
 
         
         
@@ -206,11 +259,13 @@ def train(samples, step):
     imgs['imgrfake']=imgrfake
     imgs['depthl']=depthl/depthl.max()
     imgs['depthl_pred']=depthl_pred/depthl_pred.max()
-    imgs['maskl'] = maskl*255
+    imgs['maskl'] = maskl * 255
+    imgs['Irwarp2l']=Irwarp2l
     scales['loss']=loss
     scales['mae']=mae
     scales['depth_loss']=depth_loss
-    scales['err_per']=per
+    scales['err_per'] = per
+    
     write_tensorboard(scales,imgs,args.fre_img)
 
 
@@ -226,6 +281,8 @@ def test_batch(samples):
     imglnoh = samples['imglnoh'].cuda()
     imgrnoh = samples['imgrnoh'].cuda()
     depthl = samples['displ'].cuda()
+    maskl = samples['oemaskl'].cuda().byte().detach()
+    maskr = samples['oemaskr'].cuda().byte().detach()
     
     with torch.no_grad():
         outputs = modelG(imgl, imgr)
