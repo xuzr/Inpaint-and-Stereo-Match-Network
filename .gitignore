@@ -5,3 +5,4 @@ runs
 pretrained_ckpt
 *ckpt
 result
+train.sh

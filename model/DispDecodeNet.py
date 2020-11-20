@@ -68,7 +68,7 @@ class DispDecodeNet(nn.Module):
             nn.Conv2d(ngf *2  * 3, ngf, kernel_size=3, stride=1, padding=1, bias=use_bias),
             norm_layer(ngf* 1))
 
-        self.dres0 = nn.Sequential(convbn_3d(64, 32, 3, 1, 1),
+        self.dres0 = nn.Sequential(convbn_3d(ngf*2, 32, 3, 1, 1),
                                      nn.ReLU(inplace=True),
                                      convbn_3d(32, 32, 3, 1, 1),
                                      nn.ReLU(inplace=True))
