@@ -7,12 +7,14 @@ from dataloader.readPFM import readPFM
 
 class BlenderDataset(IASMNDataset):
     def __init__(self, datafloder, txtpath, mor_size, transform, ob=False, random_mask=False, expose_imgs=True, normal_imgs=True, mask=True, disp=True):
-        super(BlenderDataset,self).__init__(random_mask,expose_imgs,normal_imgs,mask,disp)
+        super(BlenderDataset,self).__init__(expose_imgs,normal_imgs,mask,disp,random_mask)
         self.paths = [line.strip() for line in open(txtpath).readlines()]
         self.datafloder = datafloder
         self.transform = transform
         self.mor_size = mor_size
         self.ob = ob
+        self.w = 512
+        self.h=256
 
     def get_len(self):
         return len(self.paths)
@@ -23,8 +25,8 @@ class BlenderDataset(IASMNDataset):
         self.imgl = Image.open(os.path.join(self.datafloder,imglp))
         self.imgr = Image.open(os.path.join(self.datafloder, imgrp))
 
-        self.imgl = self.imgl.resize((512, 384), Image.NEAREST)
-        self.imgr = self.imgr.resize((512, 384), Image.NEAREST)
+        self.imgl = self.imgl.resize((512, self.h), Image.NEAREST)
+        self.imgr = self.imgr.resize((512, self.h), Image.NEAREST)
         
         return np.array(self.imgl).astype(np.float32)/255.0,np.array(self.imgr).astype(np.float32)/255.0
 
@@ -34,8 +36,8 @@ class BlenderDataset(IASMNDataset):
         self.imglnoh = Image.open(os.path.join(self.datafloder,imglnohp))
         self.imgrnoh = Image.open(os.path.join(self.datafloder, imgrnohp))
 
-        self.imglnoh = self.imglnoh.resize((512, 384), Image.NEAREST)
-        self.imgrnoh = self.imgrnoh.resize((512, 384), Image.NEAREST)
+        self.imglnoh = self.imglnoh.resize((512, self.h), Image.NEAREST)
+        self.imgrnoh = self.imgrnoh.resize((512, self.h), Image.NEAREST)
         
         return np.array(self.imglnoh).astype(np.float32)/255.0, np.array(self.imgrnoh).astype(np.float32)/255.0
         
@@ -52,6 +54,6 @@ class BlenderDataset(IASMNDataset):
         displ_file = 'gt_disp_highres_Cam000.pfm'
         displ,_ = readPFM(os.path.join(self.datafloder,file_idx,displ_file))
 
-        displ_img = Image.fromarray(displ.copy()*512.0/(3*640)).resize((512,384),Image.NEAREST)
+        displ_img = Image.fromarray(displ.copy()*512.0/(3*640)).resize((512,self.h),Image.NEAREST)
 
         return np.array(displ_img).astype(np.float32)

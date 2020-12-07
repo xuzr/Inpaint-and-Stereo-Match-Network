@@ -1,5 +1,10 @@
+import random
+
 train_files = open('./split/OEScene2/train_files.txt','a+')
 test_files = open('./split/OEScene2/test_files.txt', 'a+')
+
+train_files = open('./split/scene2random/train_files.txt','a+')
+test_files = open('./split/scene2random/test_files.txt', 'a+')
 
 count = 0
 
@@ -21,9 +26,11 @@ dispr = 'gt_disp_highres_Cam001.pfm'
 #             train_files.write(dir+'/'+imgl.format(int(dir)) + ' ' + dir+'/'+imgr.format(int(dir)) +
 #                               ' ' + dir+'/'+imglnoh.format(int(dir)) + ' ' + dir+'/'+imgrnoh.format(int(dir)) + '\n')
 #         count = count + 1
-
-for idx in range(301, 452):
-    dir = '{:06d}'.format(idx)
+idxs = [num for num in range(0, 301)]
+random.shuffle(idxs)
+print(idxs)
+for idx in range(0, 301):
+    dir = '{:06d}'.format(idxs[idx])
     if (count % 5 == 0):
         test_files.write(dir+'/'+imgl.format(int(dir)) + ' ' + dir+'/'+imgr.format(int(dir)) +
                             ' ' + dir+'/'+imglnoh.format(int(dir)) + ' ' + dir+'/'+imgrnoh.format(int(dir)) + '\n')

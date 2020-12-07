@@ -1,7 +1,5 @@
 import torch
-# from model import UnetGenerator, StereoUnetGenerator
-from model import IASMNet
-
+from model import UnetGenerator, StereoUnetGenerator
 from torch.nn import init
 import torch.optim as optim
 import torch.nn.functional as F
@@ -18,13 +16,13 @@ from utils import *
 
 parser = argparse.ArgumentParser(description='IPASMNet')
 
-parser.add_argument('--loadmodel', default= None,required=True,
+parser.add_argument('--loadmodel', default= None,
                     help='load model')
-parser.add_argument('--result', default= None,required=True,
+parser.add_argument('--result', default= None,
                     help='path to save result')
 args = parser.parse_args()
 
-modelG = IASMNet(3, 3, 7,maxdisp=192)
+modelG = StereoUnetGenerator(3, 3, 7)
 modelG.cuda()
 
 if args.loadmodel:
@@ -34,8 +32,7 @@ if args.loadmodel:
 
 transform = transforms.Compose([transforms.Resize((384, 512)),transforms.ToTensor()])
 
-# test_loader = data.DataLoader(BlenderSceneDataset("/data/highlight/lightfield/sequence", "./split/OEScene2/test_files.txt",20,transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
-test_loader = data.DataLoader(BlenderSceneDataset("/data/highlight/lightfield/sequence", "./split/scene2random/test_files.txt",20,transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+test_loader = data.DataLoader(BlenderSceneDataset("/data/highlight/lightfield/sequence", "./split/OEScene2/test_files.txt",20,transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 
 def test_batch(imgl, imgr, imglnoh, imgrnoh,depthl,depthr,step):

@@ -21,6 +21,18 @@ def generate_random_mask(h, w, maxmasks=10, maxsize=10):
     return mask
 
 class IASMNDataset(data.Dataset):
+    """IASMNDataset base dataset.
+
+    expose_imgs:offer exposed imgs by get_expose_imgs(idx)\n
+    normal_imgs:offer normal imgs by get_normal_imgs(idx)\n
+    mask:offer mask by get_mask(idx)\n
+    random_mask:whether to use random mask\n
+    max_masks:max number of random generated mask\n
+    max_size:max size of random generated mask\n
+    mask_path:if set, mask will be read from 'os.path.join(self.mask_path,'{:08d}maskl.png'.format(idx))'\n
+    trainning: in trainning mode
+    """
+
     def __init__(self,expose_imgs=True,normal_imgs=True,mask=True,disp=True,random_mask=False,max_masks=5,max_size=20,mask_path=None,trainning=True):
         super(IASMNDataset, self).__init__()
         self.random_mask = random_mask
@@ -65,12 +77,28 @@ class IASMNDataset(data.Dataset):
                  
             if self.mask:
                 samples['oemaskl'], samples['oemaskr'] = self.get_mask(idx)
-            else:
-                samples['oemaskl'] = torch.sum(abs(samples['imgl']-samples['imglnoh']),1)<0.3
-                samples['oemaskr'] = torch.sum(abs(samples['imgr']-samples['imgrnoh']),1)<0.3
+            # else:
+            #     samples['oemaskl'] = torch.sum(abs(samples['imgl']-samples['imglnoh']),1)<0.3
+            #     samples['oemaskr'] = torch.sum(abs(samples['imgr']-samples['imgrnoh']),1)<0.3
                 
             if self.disp:
                 samples['displ'] = self.get_disp(idx)
+            
+        # if self.trainning:
+        #     h, w = samples['imgL'].shape[:2]
+        #     new_h, new_w = self.output_size
+
+        #     if h - new_h != 0:
+        #         top = np.random.randint(0, h - new_h)
+        #     else:
+        #         top = 0
+        #     if w - new_w != 0:
+        #         left = np.random.randint(0, w - new_w)
+        #     else:
+        #         left = 0
+
+        #     for key, value in sample.items():
+        #         sample[key] = np.array(value)[top:top + new_h, left:left + new_w] 
         
         for key, value in samples.items():
             if len(value.shape) == 3:

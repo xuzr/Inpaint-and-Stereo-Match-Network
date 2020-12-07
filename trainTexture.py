@@ -3,7 +3,7 @@ from model import IASMNet
 from torch.nn import init
 import torch.optim as optim
 import torch.nn.functional as F
-from dataloader import BlenderSceneDataset,BlenderDataset,SceneflowDataset,KittiDataset
+from dataloader import TextureDataset
 import torch.utils.data as data
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
@@ -74,8 +74,11 @@ if args.loadmodel:
     pretrain_dict = torch.load(args.loadmodel)
     modelG.load_state_dict(pretrain_dict['state_dict'])
 
-train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/scene2random/train_files.txt",20,transform,True), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
-test_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/scene2random/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+# train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
+# test_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+
+train_loader = data.DataLoader(TextureDataset(args.datapath, "./split/texture/train_files.txt",transform,trainning=True), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
+test_loader = data.DataLoader(TextureDataset(args.datapath, "./split/texture/test_files.txt" ,transform,trainning=False), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 # train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt",mask_path='/home/kb457/Desktop/Data/train_mask'), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
 # test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/test_files.txt",mask_path='/home/kb457/Desktop/Data/test_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
@@ -184,11 +187,11 @@ def rwarp2l(right, displ):
 def train(samples, step):
     imgl = samples['imgl'].cuda()
     imgr = samples['imgr'].cuda()
-    imglnoh = samples['imglnoh'].cuda()
-    imgrnoh = samples['imgrnoh'].cuda()
+    # imglnoh = samples['imglnoh'].cuda()
+    # imgrnoh = samples['imgrnoh'].cuda()
     depthl=samples['displ'].cuda()
-    maskl = samples['oemaskl'].cuda().byte().detach()
-    maskr = samples['oemaskr'].cuda().byte().detach()
+    # maskl = samples['oemaskl'].cuda().byte().detach()
+    # maskr = samples['oemaskr'].cuda().byte().detach()
 
 
     optimizer.zero_grad()
@@ -204,27 +207,28 @@ def train(samples, step):
     # oemask = torch.sum(abs(imgl-imglnoh),1)<0.3
     # oemask=oemask.unsqueeze(0)
     # writer.add_image('oemask', oemask,global_step=step, dataformats='NCHW')
-    mask = mask*maskl
+    # mask = mask*maskl
     mask=mask.detach()
     depth_loss = F.smooth_l1_loss(depthl_pred[mask],depthl[mask],reduction='mean') \
             + 0.5*(F.smooth_l1_loss(outputs['depthl_2ngf'].unsqueeze(1)[mask],depthl[mask],reduction='mean')) \
             + 0.7*(F.smooth_l1_loss(outputs['depthl_ngf'].unsqueeze(1)[mask],depthl[mask],reduction='mean'))
     
-    oemaskl = 1-maskl
-    oemaskr = 1-maskr
-    oemaskl=oemaskl.repeat(1,3,1,1)
-    oemaskr=oemaskr.repeat(1,3,1,1)
-    img_loss = F.mse_loss(imglfake, imglnoh, reduction='mean') + F.mse_loss(imgrfake, imgrnoh, reduction='mean')
+    # oemaskl = 1-maskl
+    # oemaskr = 1-maskr
+    # oemaskl=oemaskl.repeat(1,3,1,1)
+    # oemaskr=oemaskr.repeat(1,3,1,1)
+    # img_loss = F.mse_loss(imglfake, imglnoh, reduction='mean') + F.mse_loss(imgrfake, imgrnoh, reduction='mean')
     
-    if not oemaskl.sum() == 0:
-        img_loss += F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean')
-    if not oemaskr.sum() == 0:
-        img_loss += F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean')
+    # if not oemaskl.sum() == 0:
+    #     img_loss += F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean')
+    # if not oemaskr.sum() == 0:
+    #     img_loss += F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean')
 
 
     Irwarp2l = rwarp2l(imgrfake, depthl_pred)
-    recon_loss = compute_reprojection_loss(imglfake,Irwarp2l).mean()
-    loss = depth_loss + img_loss + 0.5*recon_loss
+    recon_loss = compute_reprojection_loss(imglfake, Irwarp2l).mean()
+    generate_loss = compute_reprojection_loss(imgl,imglfake).mean()+compute_reprojection_loss(imgr,imgrfake).mean()
+    loss = depth_loss  + 0.1*recon_loss+0.05*generate_loss
 
 
         
@@ -252,13 +256,13 @@ def train(samples, step):
     scales = {}
     imgs['imgl']=imgl
     imgs['imgr']=imgr
-    imgs['imglnoh']=imglnoh
-    imgs['imgrnoh']=imgrnoh
+    # imgs['imglnoh']=imglnoh
+    # imgs['imgrnoh']=imgrnoh
     imgs['imglfake']=imglfake
     imgs['imgrfake']=imgrfake
     imgs['depthl']=depthl/depthl.max()
     imgs['depthl_pred']=depthl_pred/depthl_pred.max()
-    imgs['maskl'] = maskl.float()
+    # imgs['maskl'] = maskl.float()
     imgs['Irwarp2l']=Irwarp2l
     scales['loss']=loss
     scales['mae']=mae
@@ -277,11 +281,11 @@ def test_batch(samples):
 
     imgl = samples['imgl'].cuda()
     imgr = samples['imgr'].cuda()
-    imglnoh = samples['imglnoh'].cuda()
-    imgrnoh = samples['imgrnoh'].cuda()
+    # imglnoh = samples['imglnoh'].cuda()
+    # imgrnoh = samples['imgrnoh'].cuda()
     depthl = samples['displ'].cuda()
-    maskl = samples['oemaskl'].cuda().byte().detach()
-    maskr = samples['oemaskr'].cuda().byte().detach()
+    # maskl = samples['oemaskl'].cuda().byte().detach()
+    # maskr = samples['oemaskr'].cuda().byte().detach()
     
     with torch.no_grad():
         outputs = modelG(imgl, imgr)
@@ -290,11 +294,11 @@ def test_batch(samples):
     maskzero = depthl > 0
     mask *=maskzero
     mae = F.l1_loss(depthl_pred.unsqueeze(0)[mask],depthl[mask])
-    vaildoemask = torch.sum(abs(imgl - imglnoh), 1) < 0.1
-    vaildoemask = vaildoemask.unsqueeze(0)
-    vaildmae = F.l1_loss(depthl_pred.unsqueeze(0)[vaildoemask],depthl[vaildoemask])
+    # vaildoemask = torch.sum(abs(imgl - imglnoh), 1) < 0.1
+    # vaildoemask = vaildoemask.unsqueeze(0)
+    # vaildmae = F.l1_loss(depthl_pred.unsqueeze(0)[vaildoemask],depthl[vaildoemask])
     print("test step: {:06d}  mae:{:2.6f}".format(step,mae.item()))
-    return mae,vaildmae
+    return mae,0
     
 
 def test():
