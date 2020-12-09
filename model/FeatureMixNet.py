@@ -15,7 +15,7 @@ def rwarp2l(right, displ):
     gridl = np.concatenate((xl, yl), 1)
 
 
-    gridl = torch.from_numpy(gridl).cuda().float()
+    gridl = torch.tensor(gridl).cuda().float()
     y_zerosl = torch.zeros(displ.size()).cuda()
                  
     flol=torch.cat((displ,y_zerosl),1).float()
@@ -33,7 +33,7 @@ def rwarp2l(right, displ):
 
     vgridl = vgridl.permute(0, 2, 3, 1) 
 
-    Irwarp2l=nn.functional.grid_sample(right,vgridl)
+    Irwarp2l=nn.functional.grid_sample(right.float(),vgridl)
 
     return Irwarp2l
 

@@ -14,11 +14,11 @@ class IASMNet(nn.Module):
         self.dispDecode = DispDecodeNet(maxdisp, ngf, norm_layer, use_dropout)
         self.imgDecode = ImgDecodeNet(output_nc, ngf, norm_layer, use_dropout)
         self.featMix = FeatureMixNet(ngf)
-        
     def forward(self, x, y):
         xmix_ngf, ymix_ngf, xmix_2ngf, ymix_2ngf = self.mixNet(x, y)
         outputs = self.dispDecode(x, y, xmix_2ngf, ymix_2ngf)
         xmix_ngf_mix = self.featMix(xmix_ngf,ymix_ngf.detach(),outputs['depthl'].detach())
+        # xmix_ngf_mix = xmix_ngf
         ximg, yimg = self.imgDecode(x, y, xmix_ngf_mix, ymix_ngf)
         outputs['xout'] = ximg
         outputs['yout'] = yimg
