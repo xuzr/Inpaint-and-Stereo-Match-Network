@@ -81,11 +81,11 @@ if args.loadmodel:
     modelG_dict.update(tmp_dict)
     modelG.load_state_dict(modelG_dict)
 
-train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/scene2random/train_files.txt",20,transform,True), batch_size=4, shuffle=True, num_workers=2, drop_last=True)
-test_loader = data.DataLoader(BlenderDataset('/data/highlight/lightfield/sequence', "./split/scene2random/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+# train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/scene2random/train_files.txt",20,transform,True), batch_size=4, shuffle=True, num_workers=2, drop_last=True)
+# test_loader = data.DataLoader(BlenderDataset('/data/highlight/lightfield/sequence', "./split/scene2random/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
-# train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt",mask_path='/home/kb457/Desktop/Data/train_mask'), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
-# test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/test_files.txt",mask_path='/home/kb457/Desktop/Data/test_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt",mask_path='/home/kb457/Desktop/Data/train_mask'), batch_size=4, shuffle=True, num_workers=2, drop_last=True)
+test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/test_files.txt",mask_path='/home/kb457/Desktop/Data/test_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 # train_loader = data.DataLoader(KittiDataset('/home/kb457/Desktop/Data', "./split/kitti2015/train_files.txt",mask_path='/home/kb457/Desktop/Data/data_scene_flow/train_mask',trainning=True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
 # test_loader = data.DataLoader(KittiDataset('/home/kb457/Desktop/Data', "./split/kitti2015/test_files.txt",mask_path='/home/kb457/Desktop/Data/data_scene_flow/train_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
@@ -324,7 +324,7 @@ if __name__ == "__main__":
     step =0
     minMae=None
     minOEMae=None
-    for epoch in range(301):
+    for epoch in range(21):
         for batch_idx, samples in enumerate(train_loader):
             train(samples,step)
             step =step+1
@@ -344,10 +344,12 @@ if __name__ == "__main__":
             
                 
             
-        if epoch%1==0:
+        if epoch % 1 == 0:
+            print(epoch)
             torch.save(
                 {
-                    'state_dict': modelG.state_dict()
+                    'state_dict': modelG.state_dict(),
+                    'scaler': scaler.state_dict()
                 },
                 "./ckpt/checkpoint_{:04d}.tar".format(epoch)
             )

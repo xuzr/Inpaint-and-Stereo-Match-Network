@@ -56,7 +56,9 @@ class IASMNDataset(data.Dataset):
             samples['imglnoh'], samples['imgrnoh'] = self.get_normal_imgs(idx)
             samples['displ'] = self.get_disp(idx)
             h, w = samples['imglnoh'].shape[:2]
-            if self.mask_path:
+            if self.mask:
+                samples['oemaskl'], samples['oemaskr'] = self.get_mask(idx)
+            elif self.mask_path:
                 samples['oemaskl']=io.imread(os.path.join(self.mask_path,'{:08d}maskl.png'.format(idx)))
                 samples['oemaskr']=io.imread(os.path.join(self.mask_path,'{:08d}maskr.png'.format(idx)))
             else:
