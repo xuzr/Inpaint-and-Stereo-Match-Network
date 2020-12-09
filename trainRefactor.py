@@ -44,21 +44,20 @@ def init_weights(net, init_type='normal', gain=0.02):
     def init_func(m):
         classname = m.__class__.__name__
         if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
-            if init_type == 'normal':
-                init.normal(m.weight.data, 0.0, gain)
+            if init_type == 'normal':                init.normal_(m.weight.data, 0.0, gain)
             elif init_type == 'xavier':
-                init.xavier_normal(m.weight.data, gain=gain)
+                init.xavier_normal_(m.weight.data, gain=gain)
             elif init_type == 'kaiming':
-                init.kaiming_normal(m.weight.data, a=0, mode='fan_in')
+                init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
             elif init_type == 'orthogonal':
-                init.orthogonal(m.weight.data, gain=gain)
+                init.orthogonal_(m.weight.data, gain=gain)
             else:
                 raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
             if hasattr(m, 'bias') and m.bias is not None:
-                init.constant(m.bias.data, 0.0)
+                init.constant_(m.bias.data, 0.0)
         elif classname.find('BatchNorm2d') != -1:
-            init.normal(m.weight.data, 1.0, gain)
-            init.constant(m.bias.data, 0.0)
+            init.normal_(m.weight.data, 1.0, gain)
+            init.constant_(m.bias.data, 0.0)
 
     print('initialize network with %s' % init_type)
     net.apply(init_func)
@@ -194,9 +193,8 @@ def train(samples, step):
     imglnoh = samples['imglnoh'].cuda()
     imgrnoh = samples['imgrnoh'].cuda()
     depthl=samples['displ'].cuda()
-    maskl = samples['oemaskl'].cuda().byte().detach()
-    maskr = samples['oemaskr'].cuda().byte().detach()
-
+    maskl = samples['oemaskl'].cuda().bool().detach()
+    maskr = samples['oemaskr'].cuda().bool().detach()
 
     optimizer.zero_grad()
     outputs = modelG(imgl, imgr)
@@ -212,13 +210,13 @@ def train(samples, step):
     # oemask=oemask.unsqueeze(0)
     # writer.add_image('oemask', oemask,global_step=step, dataformats='NCHW')
     mask = mask*maskl
-    mask=mask.detach()
+    mask=mask.bool().detach()
     depth_loss = F.smooth_l1_loss(depthl_pred[mask],depthl[mask],reduction='mean') \
             + 0.5*(F.smooth_l1_loss(outputs['depthl_2ngf'].unsqueeze(1)[mask],depthl[mask],reduction='mean')) \
             + 0.7*(F.smooth_l1_loss(outputs['depthl_ngf'].unsqueeze(1)[mask],depthl[mask],reduction='mean'))
     
-    oemaskl = 1-maskl
-    oemaskr = 1-maskr
+    oemaskl = ~maskl
+    oemaskr = ~maskr
     oemaskl=oemaskl.repeat(1,3,1,1)
     oemaskr=oemaskr.repeat(1,3,1,1)
     img_loss = F.mse_loss(imglfake, imglnoh, reduction='mean') + F.mse_loss(imgrfake, imgrnoh, reduction='mean')
