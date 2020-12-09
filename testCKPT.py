@@ -82,7 +82,7 @@ if args.loadmodel:
     modelG.load_state_dict(modelG_dict)
 
 train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/scene2random/train_files.txt",20,transform,True), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
-test_loader = data.DataLoader(BlenderDataset('/data/highlight/lightfield/sequence', "./split/scene2random/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+test_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/scene2random/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 # train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt",mask_path='/home/kb457/Desktop/Data/train_mask'), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
 # test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/test_files.txt",mask_path='/home/kb457/Desktop/Data/test_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
@@ -324,10 +324,13 @@ if __name__ == "__main__":
     minMae=None
     minOEMae=None
     for epoch in range(301):
-        for batch_idx, samples in enumerate(train_loader):
-            train(samples,step)
-            step =step+1
+        # for batch_idx, samples in enumerate(train_loader):
+        #     train(samples,step)
+        #     step =step+1
 
+        print('Load pretrained model{:04d}'.format(epoch))
+        pretrain_dict = torch.load('ckpt/checkpoint_{:04d}.tar'.format(epoch))
+        modelG.load_state_dict(pretrain_dict['state_dict'])
         if epoch%1==0:
             mae,oemae = test()
             if not minMae:
@@ -343,10 +346,10 @@ if __name__ == "__main__":
             
                 
             
-        if epoch%1==0:
-            torch.save(
-                {
-                    'state_dict': modelG.state_dict()
-                },
-                "./ckpt/checkpoint_{:04d}.tar".format(epoch)
-            )
+        # if epoch%1==0:
+        #     torch.save(
+        #         {
+        #             'state_dict': modelG.state_dict()
+        #         },
+        #         "./ckpt/checkpoint_{:04d}.tar".format(epoch)
+        #     )

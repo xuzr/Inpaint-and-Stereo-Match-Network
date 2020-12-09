@@ -27,3 +27,8 @@ python trainRefactor.py      --learningrate 1e-3 \
                         --datapath /data/scene2rand/lightfield/sequence \
                         --reconstruct_loss False \
                         --loadmodel pretrained_ckpt/200910sceneflow/checkpoint_0020.tar
+
+# python testCKPT.py      --learningrate 1e-3 \
+#                         --datapath /data/highlight/lightfield/sequence \
+#                         --reconstruct_loss False \
+#                         --loadmodel pretrained_ckpt/200910sceneflow/checkpoint_0020.tar
