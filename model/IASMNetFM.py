@@ -1,4 +1,4 @@
-from model.MixNet import MixNet
+from model.MixNetPA import MixNet
 from model.DispDecodeNet import DispDecodeNet
 from model.ImgDecodeNet import ImgDecodeNet
 from model.FeatureMixNet import FeatureMixNet

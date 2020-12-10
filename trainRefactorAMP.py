@@ -30,7 +30,7 @@ parser.add_argument('--max_disp', default=192, type=int, help='max disp')
 parser.add_argument('--reconstruct_loss', type=boolean_string, default=True,
                     help='use reconstruct loss if True')
 
-parser.add_argument('--fre_img', type=int, default= 50,
+parser.add_argument('--fre_img', type=int, default= 4,
                     help='fre of write img to tensorboard')                  
 
 args = parser.parse_args()
@@ -84,7 +84,7 @@ if args.loadmodel:
 # train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/scene2random/train_files.txt",20,transform,True), batch_size=4, shuffle=True, num_workers=2, drop_last=True)
 # test_loader = data.DataLoader(BlenderDataset('/data/highlight/lightfield/sequence', "./split/scene2random/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
-train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt",mask_path='/home/kb457/Desktop/Data/train_mask'), batch_size=4, shuffle=True, num_workers=2, drop_last=True)
+train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt",mask_path='/home/kb457/Desktop/Data/train_mask'), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
 test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/test_files.txt",mask_path='/home/kb457/Desktop/Data/test_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
 # train_loader = data.DataLoader(KittiDataset('/home/kb457/Desktop/Data', "./split/kitti2015/train_files.txt",mask_path='/home/kb457/Desktop/Data/data_scene_flow/train_mask',trainning=True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
@@ -95,6 +95,7 @@ test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/scenefl
 def write_tensorboard(scales, imgs, fre):
     if step % fre == 0:
         for key, value in imgs.items():
+            print(key)
             writer.add_image(key,value,step,dataformats='NCHW')
 
     for key, value in scales.items():
@@ -269,7 +270,7 @@ def train(samples, step):
     scales['mae']=mae
     scales['depth_loss']=depth_loss
     scales['err_per'] = per
-    
+    import pdb; pdb.set_trace()
     write_tensorboard(scales,imgs,args.fre_img)
 
     scaler.scale(loss).backward()
