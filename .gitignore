@@ -7,3 +7,4 @@ pretrained_ckpt
 result
 train.sh
 runs_backup
+region_mask.png

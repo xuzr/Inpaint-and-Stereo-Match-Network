@@ -61,6 +61,6 @@ class FeatureMixNet(nn.Module):
         disp = disp.unsqueeze(1)
         disp = disp[:,:,::2,::2]
         warpd = rwarp2l(source_, disp)
-        
-        return weight*target+(1-weight)*warpd
+        new_target = weight*target+(1-weight)*warpd
+        return torch.cat([target,new_target],dim=1)
         

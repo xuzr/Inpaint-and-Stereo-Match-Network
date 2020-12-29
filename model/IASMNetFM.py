@@ -1,5 +1,5 @@
 from model.MixNetPA import MixNet
-from model.DispDecodeNet import DispDecodeNet
+from model.DispDecodeNetCorr import DispDecodeNet
 from model.ImgDecodeNet import ImgDecodeNet
 from model.FeatureMixNet import FeatureMixNet
 import torch

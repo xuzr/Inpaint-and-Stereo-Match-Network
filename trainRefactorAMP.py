@@ -3,14 +3,17 @@ from model import IASMNet
 from torch.nn import init
 import torch.optim as optim
 import torch.nn.functional as F
-from dataloader import BlenderSceneDataset,BlenderDataset,SceneflowDataset,KittiDataset
+from dataloader import BlenderSceneDataset,BlenderDataset,SceneflowDataset,KittiDataset,TextureDataset
 import torch.utils.data as data
 import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
 import argparse
 import numpy as np
 import torch.nn as nn
+from InpaintingLoss import InpaintingLoss,VGG16FeatureExtractor
 
+LAMBDA_DICT = {
+    'valid': 1.0, 'hole': 6.0, 'tv': 0.1, 'prc': 0.05, 'style': 120.0}
 
 def boolean_string(s):
     if s not in {'False', 'True'}:
@@ -30,7 +33,7 @@ parser.add_argument('--max_disp', default=192, type=int, help='max disp')
 parser.add_argument('--reconstruct_loss', type=boolean_string, default=True,
                     help='use reconstruct loss if True')
 
-parser.add_argument('--fre_img', type=int, default= 4,
+parser.add_argument('--fre_img', type=int, default= 50,
                     help='fre of write img to tensorboard')                  
 
 args = parser.parse_args()
@@ -67,7 +70,8 @@ modelG.cuda()
 init_weights(modelG,'kaiming')
 
 optimizer = optim.Adam(modelG.parameters(), lr=args.learningrate, betas=(0.9, 0.999))
-scaler =torch.cuda.amp.GradScaler(enabled=True)
+scaler =torch.cuda.amp.GradScaler(enabled=False)
+inpainting_loss = InpaintingLoss(VGG16FeatureExtractor()).cuda()
 
 # if args.loadmodel:
 #     print('Load pretrained model')
@@ -81,21 +85,27 @@ if args.loadmodel:
     modelG_dict.update(tmp_dict)
     modelG.load_state_dict(modelG_dict)
 
-# train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/scene2random/train_files.txt",20,transform,True), batch_size=4, shuffle=True, num_workers=2, drop_last=True)
+# train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/scene2random/train_files.txt",20,transform,True), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
 # test_loader = data.DataLoader(BlenderDataset('/data/highlight/lightfield/sequence', "./split/scene2random/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
-train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt",mask_path='/home/kb457/Desktop/Data/train_mask'), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
-test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/test_files.txt",mask_path='/home/kb457/Desktop/Data/test_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+# train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/OEScene2/train_files.txt",20,transform,True), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
+# test_loader = data.DataLoader(BlenderDataset('/data/highlight/lightfield/sequence', "./split/OEScene2/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
-# train_loader = data.DataLoader(KittiDataset('/home/kb457/Desktop/Data', "./split/kitti2015/train_files.txt",mask_path='/home/kb457/Desktop/Data/data_scene_flow/train_mask',trainning=True), batch_size=1, shuffle=True, num_workers=0, drop_last=True)
-# test_loader = data.DataLoader(KittiDataset('/home/kb457/Desktop/Data', "./split/kitti2015/test_files.txt",mask_path='/home/kb457/Desktop/Data/data_scene_flow/train_mask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+# train_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/train_files.txt",mask_path='/home/kb457/Desktop/Data/trainOneMask'), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
+# test_loader = data.DataLoader(SceneflowDataset('/home/kb457/Desktop/Data/sceneflow', "./split/Sceneflow/test_files.txt",mask_path='/home/kb457/Desktop/Data/testOneMask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
 
+train_loader = data.DataLoader(KittiDataset('/home/kb457/Desktop/Data', "./split/kitti2015/train_files.txt",mask_path='/home/kb457/Desktop/Data/trainRegionMask',trainning=True), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
+test_loader = data.DataLoader(KittiDataset('/home/kb457/Desktop/Data', "./split/kitti2015/test_files.txt",mask_path='/home/kb457/Desktop/Data/testRegionMask'), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+
+# train_loader = data.DataLoader(TextureDataset(args.datapath, "./split/texture/train_files.txt",transform,trainning=True), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
+# test_loader = data.DataLoader(TextureDataset(args.datapath, "./split/texture/test_files.txt" ,transform,trainning=False), batch_size=1, shuffle=False, num_workers=0, drop_last=True)
+
+REPAIR=True
 
 # def write_tensorboard(imgl, imgr, imglnoh, imgrnoh, imglfake, imgrfake,maskl,maskr, loss,step):
 def write_tensorboard(scales, imgs, fre):
     if step % fre == 0:
         for key, value in imgs.items():
-            print(key)
             writer.add_image(key,value,step,dataformats='NCHW')
 
     for key, value in scales.items():
@@ -192,14 +202,16 @@ def rwarp2l(right, displ):
 def train(samples, step):
     imgl = samples['imgl'].cuda()
     imgr = samples['imgr'].cuda()
-    imglnoh = samples['imglnoh'].cuda()
-    imgrnoh = samples['imgrnoh'].cuda()
     depthl=samples['displ'].cuda()
-    maskl = samples['oemaskl'].cuda().bool().detach()
-    maskr = samples['oemaskr'].cuda().bool().detach()
+
+    if REPAIR:
+        imglnoh = samples['imglnoh'].cuda()
+        imgrnoh = samples['imgrnoh'].cuda()
+        maskl = samples['oemaskl'].cuda().bool().detach()
+        maskr = samples['oemaskr'].cuda().bool().detach()
 
     optimizer.zero_grad()
-    with torch.cuda.amp.autocast(enabled=True):
+    with torch.cuda.amp.autocast(enabled=False):
         outputs = modelG(imgl, imgr)
         imglfake, imgrfake = outputs['xout'], outputs['yout']
         depthl_pred = outputs['depthl'].unsqueeze(1)
@@ -211,27 +223,40 @@ def train(samples, step):
         # oemask = torch.sum(abs(imgl-imglnoh),1)<0.3
         # oemask=oemask.unsqueeze(0)
         # writer.add_image('oemask', oemask,global_step=step, dataformats='NCHW')
-        mask = mask*maskl
+        if REPAIR:
+            mask = mask*maskl
         mask=mask.bool().detach()
         depth_loss = F.smooth_l1_loss(depthl_pred[mask],depthl[mask],reduction='mean') \
                 + 0.5*(F.smooth_l1_loss(outputs['depthl_2ngf'].unsqueeze(1)[mask],depthl[mask],reduction='mean')) \
                 + 0.7*(F.smooth_l1_loss(outputs['depthl_ngf'].unsqueeze(1)[mask],depthl[mask],reduction='mean'))
+        if REPAIR:
+            oemaskl = ~maskl
+            oemaskr = ~maskr
+            oemaskl=oemaskl.repeat(1,3,1,1)
+            oemaskr=oemaskr.repeat(1,3,1,1)
+        # img_loss = F.mse_loss(imglfake, imglnoh, reduction='mean') + F.mse_loss(imgrfake, imgrnoh, reduction='mean')
         
-        oemaskl = ~maskl
-        oemaskr = ~maskr
-        oemaskl=oemaskl.repeat(1,3,1,1)
-        oemaskr=oemaskr.repeat(1,3,1,1)
-        img_loss = F.mse_loss(imglfake, imglnoh, reduction='mean') + F.mse_loss(imgrfake, imgrnoh, reduction='mean')
-        
-        if not oemaskl.sum() == 0:
-            img_loss += F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean')
-        if not oemaskr.sum() == 0:
-            img_loss += F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean')
+        # if not oemaskl.sum() == 0:
+        #     img_loss += F.mse_loss(imglfake[oemaskl], imglnoh[oemaskl], reduction='mean')
+        # if not oemaskr.sum() == 0:
+        #     img_loss += F.mse_loss(imgrfake[oemaskr], imgrnoh[oemaskr], reduction='mean')
+            img_loss=0
+            imgl_loss = inpainting_loss(imgl, maskl, imglfake, imglnoh)
+        # imgr_loss = inpainting_loss(imgr,maskr,imgrfake,imgrnoh)
 
+            for key, coef in LAMBDA_DICT.items():
+                # img_loss +=(coef*(imgl_loss[key]+imgr_loss[key]))
+                img_loss +=(coef*(imgl_loss[key]))
+            # value = coef * loss_dict[key]
+            # loss += value
 
         Irwarp2l = rwarp2l(imgrfake, depthl_pred)
-        recon_loss = compute_reprojection_loss(imglfake,Irwarp2l).mean()
-        loss = depth_loss + img_loss + 0.5*recon_loss
+        recon_loss = compute_reprojection_loss(imglfake, Irwarp2l).mean()
+        if REPAIR:
+            loss = depth_loss + img_loss + 0.5 * recon_loss
+        else:
+            loss = depth_loss + 0.5 * recon_loss
+            
 
         
         
@@ -252,25 +277,28 @@ def train(samples, step):
     #     if step%50==0:
     #         writer.add_image("imglrecon", IFrwarp2l, step, dataformats='NCHW')
             
-        
+      
+    # torch.cuda.empty_cache()
     # write_tensorboard(imgl,imgr,imglnoh,imgrnoh,imglfake,imgrfake,maskl,maskr,loss,step)
     imgs = {}
     scales = {}
     imgs['imgl']=imgl
     imgs['imgr']=imgr
-    imgs['imglnoh']=imglnoh
-    imgs['imgrnoh']=imgrnoh
+
     imgs['imglfake']=imglfake
     imgs['imgrfake']=imgrfake
     imgs['depthl']=depthl/depthl.max()
     imgs['depthl_pred']=depthl_pred/depthl_pred.max()
-    imgs['maskl'] = maskl.float()
     imgs['Irwarp2l']=Irwarp2l
     scales['loss']=loss
     scales['mae']=mae
     scales['depth_loss']=depth_loss
     scales['err_per'] = per
-    import pdb; pdb.set_trace()
+    if REPAIR:
+        imgs['imglnoh']=imglnoh
+        imgs['imgrnoh'] = imgrnoh
+        imgs['maskl'] = maskl.float()
+        
     write_tensorboard(scales,imgs,args.fre_img)
 
     scaler.scale(loss).backward()
@@ -286,11 +314,13 @@ def test_batch(samples):
 
     imgl = samples['imgl'].cuda()
     imgr = samples['imgr'].cuda()
-    imglnoh = samples['imglnoh'].cuda()
-    imgrnoh = samples['imgrnoh'].cuda()
     depthl = samples['displ'].cuda()
-    maskl = samples['oemaskl'].cuda().byte().detach()
-    maskr = samples['oemaskr'].cuda().byte().detach()
+
+    if REPAIR:
+        imglnoh = samples['imglnoh'].cuda()
+        imgrnoh = samples['imgrnoh'].cuda()
+        maskl = samples['oemaskl'].cuda().byte().detach()
+        maskr = samples['oemaskr'].cuda().byte().detach()
     
     with torch.no_grad():
         outputs = modelG(imgl, imgr)
@@ -298,10 +328,13 @@ def test_batch(samples):
     mask = depthl < args.max_disp
     maskzero = depthl > 0
     mask *=maskzero
-    mae = F.l1_loss(depthl_pred.unsqueeze(0)[mask],depthl[mask])
-    vaildoemask = torch.sum(abs(imgl - imglnoh), 1) < 0.1
-    vaildoemask = vaildoemask.unsqueeze(0)
-    vaildmae = F.l1_loss(depthl_pred.unsqueeze(0)[vaildoemask],depthl[vaildoemask])
+    mae = F.l1_loss(depthl_pred.unsqueeze(0)[mask], depthl[mask])
+    if REPAIR:
+        vaildoemask = torch.sum(abs(imgl - imglnoh), 1) < 0.1
+        vaildoemask = vaildoemask.unsqueeze(0)
+        vaildmae = F.l1_loss(depthl_pred.unsqueeze(0)[vaildoemask], depthl[vaildoemask])
+    else:
+        vaildmae=0
     print("test step: {:06d}  mae:{:2.6f}".format(step,mae.item()))
     return mae,vaildmae
     
@@ -325,7 +358,7 @@ if __name__ == "__main__":
     step =0
     minMae=None
     minOEMae=None
-    for epoch in range(21):
+    for epoch in range(301):
         for batch_idx, samples in enumerate(train_loader):
             train(samples,step)
             step =step+1

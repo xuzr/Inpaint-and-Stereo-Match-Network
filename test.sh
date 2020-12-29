@@ -9,4 +9,10 @@
 
 # python testTexture.py --loadmodel pretrained_ckpt/201201Texture无监督loss/checkpoint_0085.tar --result result/201201Texture无监督loss
 
-python testNew.py --loadmodel pretrained_ckpt/201208sc2Mix/checkpoint_0004.tar --result result/201208sc2Mixckpt4/
+# python testNew.py --loadmodel pretrained_ckpt/201208sc2Mix/checkpoint_0004.tar --result result/201208sc2Mixckpt4/
+
+# python testNew.py --loadmodel pretrained_ckpt/201221hl/checkpoint_0074.tar --result result/201221hloe/
+
+# python testNew.py --loadmodel pretrained_ckpt/201222kitti2015/checkpoint_0298.tar --result result/201222kitti2015/
+
+python testNew.py --loadmodel pretrained_ckpt/201225texture/checkpoint_0059.tar --result result/201225texture/

@@ -7,6 +7,52 @@ import numpy as np
 import os
 import random
 
+def generate_region_random_mask(h=384, w=512,maxmasks=10, maxsize=10, sx=0.25, sy=0.5, ex=0.75, ey=1):
+    mask = np.ones((h, w))
+    sx = int(sx*w)
+    sy = int(sy*h)
+    ex = int(ex*w)
+    ey = int(ey*h)
+    
+    sx_ = int(random.random() * ((ex - sx) - 1))+sx
+    sy_ = int(random.random() * ((ey - sy) - 1))+sy
+    w_ = min(int(random.random() * maxsize + 50), (ex - sx) - 1)
+    h_ = min(int(random.random() * maxsize + 50), (ey - sy) - 1)
+    
+    mask[sy_:sy_+h_, sx_:sx_+w_] = np.zeros_like(mask[sy_:sy_+h_, sx_:sx_+w_])
+    
+    return mask
+
+def generate_relevent_random_mask(h=384, w=512,maxmasks=10, maxsize=10, sx=0.25, sy=0.5, ex=0.75, ey=1):
+    mask = np.ones((h, w))
+    sx = int(sx*w)
+    sy = int(sy*h)
+    ex = int(ex*w)
+    ey = int(ey*h)
+    
+    sx_ = int(random.random() * ((ex - sx) - 1))+sx
+    sy_ = int(random.random() * ((ey - sy) - 1))+sy
+    w_ = min(int(random.random() * maxsize + 50), (ex - sx) - 1)
+    h_ = min(int(random.random() * maxsize + 50), (ey - sy) - 1)
+    
+    mask[sy_: sy_ + h_, sx_: sx_ + w_] = np.zeros_like(mask[sy_: sy_ + h_, sx_: sx_ + w_])
+    
+    mask_re = np.ones((h, w))
+
+    sxr = max(sx_ - int((random.random()*0.5 + 0.5) * w_), 0)
+    syr = max(sy_ - int((random.random()*0.1) * h_), 0)
+
+    w_ = min(int(random.random() * maxsize + 50), (ex - sx) - 1)
+    h_ = min(int(random.random() * maxsize + 50), (ey - sy) - 1)
+
+    mask_re[syr: syr + h_, sxr: sxr + w_] = np.zeros_like(mask[syr: syr + h_, sxr: sxr + w_])
+
+    
+    return mask,mask_re
+    
+
+    
+
 
 def generate_random_mask(h, w, maxmasks=10, maxsize=10):
     mask = np.ones((h, w))
@@ -109,7 +155,8 @@ class IASMNDataset(data.Dataset):
                 samples[key] = torch.from_numpy(value[np.newaxis,:,:])
         
         return samples
-            
+
+
             
     def generate_mask(self,path,h=384,w=512):
         len_ = self.__len__()
@@ -134,3 +181,13 @@ class IASMNDataset(data.Dataset):
 
     def get_mask(self, idx):
         raise NotImplementedError
+
+
+if __name__ == "__main__":
+    for i in range(300):
+        # maskl = generate_region_random_mask(256, 512, 1, 20)
+        # maskr = generate_region_random_mask(256, 512, 1, 20)
+        maskl, maskr = generate_relevent_random_mask(256,512,1,20)
+        io.imsave(os.path.join('/home/kb457/Desktop/Data/trainReMask','{:08d}maskl.png'.format(i)),maskl)
+        io.imsave(os.path.join('/home/kb457/Desktop/Data/trainReMask','{:08d}maskr.png'.format(i)),maskr)
+        print(i)

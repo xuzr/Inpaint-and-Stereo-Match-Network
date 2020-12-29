@@ -17,5 +17,7 @@ def savePFM(path, image, scale=1):
             # file.write('PF\n' if color else 'Pf\n')
             file.write('%d %d\n' % (shape[1], shape[0]))
             file.write('%f\n' % scale)
-            image.tofile(file)
+
+            values = np.flipud(np.asarray(image, dtype=np.float32))
+            values.tofile(file)
         return image

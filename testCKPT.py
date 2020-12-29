@@ -74,12 +74,12 @@ optimizer = optim.Adam(modelG.parameters(), lr=args.learningrate, betas=(0.9, 0.
 #     pretrain_dict = torch.load(args.loadmodel)
 #     modelG.load_state_dict(pretrain_dict['state_dict'])
 
-if args.loadmodel:
-    print('Load pretrained model')
-    tmp_dict = torch.load(args.loadmodel)['state_dict']
-    modelG_dict = modelG.state_dict()
-    modelG_dict.update(tmp_dict)
-    modelG.load_state_dict(modelG_dict)
+# if args.loadmodel:
+#     print('Load pretrained model')
+#     tmp_dict = torch.load(args.loadmodel)['state_dict']
+#     modelG_dict = modelG.state_dict()
+#     modelG_dict.update(tmp_dict)
+#     modelG.load_state_dict(modelG_dict)
 
 train_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/scene2random/train_files.txt",20,transform,True), batch_size=2, shuffle=True, num_workers=2, drop_last=True)
 test_loader = data.DataLoader(BlenderDataset(args.datapath, "./split/scene2random/test_files.txt", 20, transform), batch_size=1, shuffle=False, num_workers=0, drop_last=True)

@@ -102,15 +102,19 @@ class DispDecodeNet(nn.Module):
         #disp pred
         #matching
         # cost = Variable(torch.FloatTensor(refimg_fea.size()[0], refimg_fea.size()[1]*2, self.maxdisp//4,  refimg_fea.size()[2],  refimg_fea.size()[3]).zero_()).cuda()
-        cost = torch.zeros([refimg_fea.size()[0], refimg_fea.size()[1]*2, self.maxdisp//4,  refimg_fea.size()[2],  refimg_fea.size()[3]]).cuda()
+        cost = torch.zeros([refimg_fea.size()[0], refimg_fea.size()[1], self.maxdisp//4,  refimg_fea.size()[2],  refimg_fea.size()[3]]).cuda()
 
-        for i in range(self.maxdisp//4):
+        for i in range(self.maxdisp // 4):
             if i > 0 :
-             cost[:, :refimg_fea.size()[1], i, :,i:]   = refimg_fea[:,:,:,i:]
-             cost[:, refimg_fea.size()[1]:, i, :,i:] = targetimg_fea[:,:,:,:-i]
+            #  cost[:, :refimg_fea.size()[1], i, :,i:]   = refimg_fea[:,:,:,i:]
+            #  cost[:, refimg_fea.size()[1] :, i, :, i:] = targetimg_fea[:, :, :, :-i]
+             cost[:, : , i, :, i:] = torch.mul(refimg_fea[:, :, :, i:], targetimg_fea[:, :, :, :-i])
+             
+             
             else:
-             cost[:, :refimg_fea.size()[1], i, :,:]   = refimg_fea
-             cost[:, refimg_fea.size()[1]:, i, :,:]   = targetimg_fea
+            #  cost[:, :refimg_fea.size()[1], i, :,:]   = refimg_fea
+            #  cost[:, refimg_fea.size()[1]:, i, :,:]   = targetimg_fea
+             cost[:, :, i, :,:]   = torch.mul(refimg_fea,targetimg_fea)
         cost = cost.contiguous()
 
 
